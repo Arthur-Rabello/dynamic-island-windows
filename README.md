@@ -58,6 +58,48 @@ Sem nenhuma conta adicionada o painel mostra o grid e a mensagem "Nenhuma conta
 no Calendário do Windows". Eventos recorrentes vêm já expandidos pelo Windows,
 então não há interpretação de RRULE para dar errado.
 
+## Baixar em outra máquina
+
+Precisa do **.NET 9 SDK** instalado. Depois:
+
+```bash
+gh repo clone Arthur-Rabello/dynamic-island-windows
+```
+
+```powershell
+cd dynamic-island-windows; dotnet publish .\DynamicIsland\DynamicIsland.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o .\publish
+```
+
+E ative o início automático naquela máquina também:
+
+```powershell
+.\inicio-automatico.ps1
+```
+
+O repositório é privado, então a máquina precisa estar autenticada — `gh auth
+login` resolve, e `gh auth setup-git` deixa `git pull` e `git push`
+funcionando sem pedir senha.
+
+## Atualizar
+
+Numa máquina que já tem o clone, para pegar as mudanças feitas na outra:
+
+```powershell
+git pull; dotnet publish .\DynamicIsland\DynamicIsland.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o .\publish
+```
+
+Feche a ilha pela bandeja antes de republicar, senão o build falha dizendo que
+o `.exe` está em uso por outro processo.
+
+Para enviar mudanças suas:
+
+```bash
+git add -A; git commit -m "o que mudou"; git push
+```
+
+A configuração em `%APPDATA%` não é versionada, então cada máquina mantém a
+própria posição da ilha e a própria cidade do clima.
+
 ## Rodar
 
 ```powershell
