@@ -231,7 +231,19 @@
                                    Style="{StaticResource TabIcon}"
                                    ToolTip="Hardware"
                                    MouseLeftButtonUp="TabHardware_Click"/>
+                        <TextBlock x:Name="TabVolume"
+                                   Text="&#xE767;"
+                                   Style="{StaticResource TabIcon}"
+                                   ToolTip="Volume"
+                                   MouseLeftButtonUp="TabVolume_Click"/>
                     </StackPanel>
+
+                    <!-- One dot per enabled tab, the current one lit -->
+                    <StackPanel x:Name="TabDots"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Margin="0,0,34,0"/>
 
                     <TextBlock Text="&#xE711;"
                                Style="{StaticResource TabIcon}"

@@ -15,7 +15,7 @@ public partial class CalendarPanel : UserControl
 
     static readonly CultureInfo Culture = new("pt-BR");
 
-    readonly CalendarService _calendar = new();
+    readonly CalendarService _calendar;
     readonly Brush _accent = AccentColor.Brush();
 
     DateTime _month = FirstOfMonth(DateTime.Today);
@@ -26,8 +26,9 @@ public partial class CalendarPanel : UserControl
     /// the new height instead of leaving a gap or clipping the last row.
     public event Action? LayoutChanged;
 
-    public CalendarPanel()
+    public CalendarPanel(GoogleCalendar google)
     {
+        _calendar = new CalendarService(google);
         InitializeComponent();
         BuildWeekdayHeader();
         Rebuild();
@@ -85,8 +86,6 @@ public partial class CalendarPanel : UserControl
         MonthLabel.Text = Culture.TextInfo.ToTitleCase(_month.ToString("MMMM yyyy", Culture));
 
         var (gridStart, weeks) = GridRange(_month);
-        int previousRows = DayGrid.Rows;
-
         DayGrid.Rows = weeks;
         DayGrid.Children.Clear();
 
@@ -101,7 +100,9 @@ public partial class CalendarPanel : UserControl
 
         BuildEventList();
 
-        if (previousRows != 0 && previousRows != weeks) LayoutChanged?.Invoke();
+        // Not only when the week count changed: the event list (or an error line)
+        // under the grid also changes the height.
+        LayoutChanged?.Invoke();
     }
 
     UIElement BuildCell(DateTime date, HashSet<DateTime> withEvents)
@@ -173,11 +174,23 @@ public partial class CalendarPanel : UserControl
 
         var ofDay = _events.Where(e => e.Start.Date == _selected.Date).ToList();
 
+        if (_calendar.GoogleError is { } googleError)
+        {
+            EventList.Children.Add(new TextBlock
+            {
+                Text = "Google Agenda: " + googleError,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)),
+                FontSize = 11,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 5)
+            });
+        }
+
         if (ofDay.Count == 0)
         {
             EventList.Children.Add(new TextBlock
             {
-                Text = _calendar.Available ? "Nada marcado" : "Nenhuma conta no Calendário do Windows",
+                Text = _calendar.Available ? "Nada marcado" : "Nenhuma conta conectada",
                 Foreground = (Brush)FindResource("TextFaint"),
                 FontSize = 11.5
             });

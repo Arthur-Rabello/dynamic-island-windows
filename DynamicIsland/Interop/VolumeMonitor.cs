@@ -63,6 +63,35 @@ public sealed class VolumeMonitor
     /// Fires with (volume 0..1, muted), only when something actually changed.
     public event Action<double, bool>? Changed;
 
+    /// Last polled values, for a panel that opens between two changes.
+    public double Level => Math.Max(_lastVolume, 0);
+    public bool Muted => _lastMute;
+
+    /// Sets the master volume; raising it from a muted state also unmutes, as
+    /// the Windows volume flyout does. The poll then reports the change like
+    /// any other, so every listener stays in sync.
+    public void Set(double level)
+    {
+        try
+        {
+            if (_endpoint is null) Acquire();
+            _endpoint!.SetMasterVolumeLevelScalar((float)Math.Clamp(level, 0, 1), Guid.Empty);
+            if (level > 0) _endpoint.SetMute(false, Guid.Empty);
+        }
+        catch { _endpoint = null; }
+    }
+
+    public void ToggleMute()
+    {
+        try
+        {
+            if (_endpoint is null) Acquire();
+            _endpoint!.GetMute(out bool muted);
+            _endpoint.SetMute(!muted, Guid.Empty);
+        }
+        catch { _endpoint = null; }
+    }
+
     public void Start()
     {
         _timer.Tick += (_, _) => Poll();

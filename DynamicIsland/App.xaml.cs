@@ -38,15 +38,40 @@ public partial class App : Application
         }
 
         var menu = new ContextMenuStrip();
+        menu.Items.Add("Configurações", null, (_, _) => OpenSettings(window));
         menu.Items.Add("Sair", null, (_, _) => Shutdown());
 
         _tray = new NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
+            // The icon baked into the exe (Assets\icon.ico).
+            Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!),
             Text = "Dynamic Island",
             Visible = true,
             ContextMenuStrip = menu
         };
+
+        _tray.MouseClick += (_, args) =>
+        {
+            if (args.Button == System.Windows.Forms.MouseButtons.Left) OpenSettings(window);
+        };
+
+        if (e.Args.Contains("--settings", StringComparer.OrdinalIgnoreCase)) OpenSettings(window);
+    }
+
+    SettingsWindow? _settingsWindow;
+
+    void OpenSettings(MainWindow island)
+    {
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+
+        _settingsWindow = new SettingsWindow(island.Settings, island.Google, island.ApplySettings);
+        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow.Show();
+        _settingsWindow.Activate();
     }
 
     protected override void OnExit(ExitEventArgs e)

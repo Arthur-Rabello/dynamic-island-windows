@@ -37,8 +37,23 @@ Clique na pílula para abrir. As abas ficam no topo; o × fecha.
 - **Tempo** — temperatura, condição, sensação, umidade e vento, via wttr.in.
 - **Hardware** — CPU, GPU, RAM, disco e rede. As barras ficam âmbar acima de
   75% e vermelhas acima de 90%.
+- **Volume** — clique ou arraste a barra para ajustar o volume geral; clique no
+  alto-falante para silenciar.
 
 Enquanto um painel está aberto, mudanças de volume e brilho não o interrompem.
+
+No canto superior direito, uma bolinha por aba ativa mostra em qual você está.
+
+## Configurações
+
+Clique no ícone da Dynamic Island na bandeja do sistema (ou botão direito →
+**Configurações**). Tudo vale na hora, sem reiniciar:
+
+- Ligar ou desligar clima, bateria e os pontos de câmera/microfone na pílula.
+- Ligar ou desligar cada expansão automática: música, volume, brilho, bateria.
+- Ligar ou desligar cada aba do painel — as bolinhas acompanham.
+- Cidade do clima.
+- Conta Google para o calendário (abaixo).
 
 ## Mover
 
@@ -48,7 +63,32 @@ painel — o arraste só começa depois de 5 px de movimento.
 
 ## Conectar seu calendário
 
-Os eventos vêm do que o Windows já sincroniza. Para popular:
+Os eventos vêm de duas fontes, somadas e sem duplicar: a conta Google conectada
+nas Configurações e o que o Windows já sincroniza.
+
+### Google Agenda
+
+O app não traz credenciais próprias — você cria as suas, uma vez:
+
+1. No [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
+   crie um projeto, ative a **Google Calendar API** e crie um **ID do cliente
+   OAuth** do tipo **App para computador**.
+2. Em Tela de permissão OAuth, publique o app em **Em produção**. Em "Teste" o
+   Google invalida o login a cada 7 dias.
+3. Cole o ID e o segredo em Configurações → Google Agenda e clique em
+   **Entrar com o Google**. O login abre no navegador padrão. Na tela de
+   permissões, **deixe marcada a caixa "Ver seus calendários"** — o Google
+   deixa concluir o login sem ela, mas aí nenhum evento aparece. O painel do
+   calendário mostra em vermelho o motivo quando o Google recusa a leitura.
+
+Só leitura (`calendar.readonly`), de todos os calendários marcados como
+visíveis na sua conta. O token de acesso fica em `%APPDATA%\DynamicIsland\google.token`,
+criptografado para o seu usuário do Windows; o ID e o segredo ficam no
+`settings.json`. **Sair da conta Google** revoga o acesso.
+
+### Calendário do Windows
+
+Para popular:
 
 1. Abra o app **Calendário** (ou **Outlook**) do Windows.
 2. Adicione sua conta Google, Outlook ou iCloud.
@@ -125,9 +165,10 @@ acontecer:
 .\publish\DynamicIsland.exe --panel=calendar
 ```
 
-`--panel` aceita `calendar`, `weather` ou `hardware`.
+`--panel` aceita `calendar`, `weather`, `hardware` ou `volume`. `--settings` abre a janela
+de configurações já na inicialização.
 
-Para fechar: ícone na bandeja do sistema → Sair.
+Para fechar: ícone na bandeja do sistema → botão direito → Sair.
 
 ## Início automático
 

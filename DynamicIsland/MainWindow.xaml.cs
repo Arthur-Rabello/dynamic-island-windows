@@ -18,7 +18,7 @@ public partial class MainWindow : Window
 {
     enum IslandState { Idle, Media, Osd, Panel }
 
-    enum PanelTab { Calendar, Weather, Hardware }
+    enum PanelTab { Calendar, Weather, Hardware, Volume }
 
     const double CollapsedWidth = 184, CollapsedHeight = 34;
     const double MediaWidth = 410, MediaHeight = 104;
@@ -59,10 +59,18 @@ public partial class MainWindow : Window
     string _idleSignature = "";
 
     readonly Settings _settings = SettingsStore.Load();
+    readonly GoogleCalendar _google;
+    string _weatherLocation;
+
+    /// Shared with the settings window, which edits these in place and then
+    /// calls ApplySettings.
+    public Settings Settings => _settings;
+    public GoogleCalendar Google => _google;
 
     CalendarPanel? _calendarPanel;
     WeatherPanel? _weatherPanel;
     HardwarePanel? _hardwarePanel;
+    VolumePanel? _volumePanel;
 
     IslandState _state = IslandState.Idle;
     PanelTab _panelTab = PanelTab.Calendar;
@@ -85,6 +93,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        _google = new GoogleCalendar(_settings);
+        _weatherLocation = _settings.WeatherLocation;
 
         Width = CollapsedWidth;
         Height = CollapsedHeight;
@@ -112,15 +123,22 @@ public partial class MainWindow : Window
         _tick.Start();
 
         _volume.Changed += (level, muted) =>
-            ShowOsd(muted ? GlyphMute : GlyphVolume, muted ? 0 : level, muted ? "Mudo" : null);
+        {
+            _volumePanel?.Refresh(level, muted);
+
+            if (_settings.VolumeOsd)
+                ShowOsd(muted ? GlyphMute : GlyphVolume, muted ? 0 : level, muted ? "Mudo" : null);
+        };
         _volume.Start();
 
         _brightness.Changed += level =>
-            Dispatcher.Invoke(() => ShowOsd(GlyphBrightness, level));
+            Dispatcher.Invoke(() => { if (_settings.BrightnessOsd) ShowOsd(GlyphBrightness, level); });
         _brightness.Start();
 
         _power.Changed += (percent, onAc) =>
         {
+            if (!_settings.BatteryOsd) return;
+
             double fraction = percent < 0 ? 1 : percent / 100.0;
             string label = percent < 0 ? (onAc ? "AC" : "Bateria") : $"{percent}%";
             ShowOsd(onAc ? GlyphCharging : GlyphBatteryLow, fraction, label);
@@ -148,10 +166,40 @@ public partial class MainWindow : Window
 
     // ---- idle pill ------------------------------------------------------
 
-    async Task RefreshIdleWeatherAsync()
+    /// Re-reads everything the settings window can change. Called after each edit.
+    public void ApplySettings()
     {
-        var reading = await _weather.GetAsync(_settings.WeatherLocation);
-        if (reading is null) return;
+        bool locationChanged = _settings.WeatherLocation != _weatherLocation;
+        _weatherLocation = _settings.WeatherLocation;
+        if (_weatherPanel is not null) _weatherPanel.Location = _weatherLocation;
+
+        if (_settings.ShowWeather) _ = RefreshIdleWeatherAsync(force: locationChanged);
+        else
+        {
+            WeatherSeparator.Visibility = IdleWeatherGlyph.Visibility = IdleTemperature.Visibility =
+                Visibility.Collapsed;
+        }
+
+        RefreshBattery();
+        RefreshPrivacy();
+        PlayingDot.Visibility = Visible(_settings.MediaExpansion && _media.IsPlaying);
+
+        if (_panelOpen)
+        {
+            if (EnabledTabs().Any()) OpenPanel(_panelTab);
+            else ClosePanel();
+        }
+        else if (_state == IslandState.Media && !MediaOn) Relax();
+
+        RefreshIdleSize();
+    }
+
+    async Task RefreshIdleWeatherAsync(bool force = false)
+    {
+        if (!_settings.ShowWeather) return;
+
+        var reading = await _weather.GetAsync(_settings.WeatherLocation, force);
+        if (reading is null || !_settings.ShowWeather) return;
 
         IdleWeatherGlyph.Text = reading.Glyph;
         IdleTemperature.Text = $"{reading.TempC}°";
@@ -166,7 +214,7 @@ public partial class MainWindow : Window
     void RefreshBattery()
     {
         var (hasBattery, percent, onAc) = PowerMonitor.Current();
-        bool show = hasBattery && percent >= 0;
+        bool show = _settings.ShowBattery && hasBattery && percent >= 0;
 
         BatterySeparator.Visibility = Visible(show);
         IdleBattery.Visibility = Visible(show);
@@ -183,8 +231,8 @@ public partial class MainWindow : Window
 
     void RefreshPrivacy()
     {
-        CameraDot.Visibility = Visible(_privacy.CameraInUse);
-        MicrophoneDot.Visibility = Visible(_privacy.MicrophoneInUse);
+        CameraDot.Visibility = Visible(_settings.ShowPrivacyDots && _privacy.CameraInUse);
+        MicrophoneDot.Visibility = Visible(_settings.ShowPrivacyDots && _privacy.MicrophoneInUse);
         RefreshIdleSize();
     }
 
@@ -239,8 +287,11 @@ public partial class MainWindow : Window
     void Relax()
     {
         if (_panelOpen) { GoTo(IslandState.Panel); return; }
-        GoTo(_hovering && _media.HasTrack ? IslandState.Media : IslandState.Idle);
+        GoTo(_hovering && MediaOn ? IslandState.Media : IslandState.Idle);
     }
+
+    /// Media expansion is a user option, so "there is a track" is not enough.
+    bool MediaOn => _settings.MediaExpansion && _media.HasTrack;
 
     void ShowOsd(string glyph, double fraction, string? label = null)
     {
@@ -265,8 +316,26 @@ public partial class MainWindow : Window
 
     // ---- panels ---------------------------------------------------------
 
+    bool TabOn(PanelTab tab) => tab switch
+    {
+        PanelTab.Calendar => _settings.CalendarTab,
+        PanelTab.Weather => _settings.WeatherTab,
+        PanelTab.Hardware => _settings.HardwareTab,
+        _ => _settings.VolumeTab
+    };
+
+    IEnumerable<PanelTab> EnabledTabs() => Enum.GetValues<PanelTab>().Where(TabOn);
+
     void OpenPanel(PanelTab tab)
     {
+        // A tab the user turned off falls back to the first one still on; with
+        // none left there is nothing to open.
+        if (!TabOn(tab))
+        {
+            if (!EnabledTabs().Any()) return;
+            tab = EnabledTabs().First();
+        }
+
         _panelOpen = true;
         _panelTab = tab;
         _collapse.Stop();
@@ -277,7 +346,8 @@ public partial class MainWindow : Window
         {
             PanelTab.Calendar => Calendar(),
             PanelTab.Weather => Weather(),
-            _ => Hardware()
+            PanelTab.Hardware => Hardware(),
+            _ => Volume()
         };
 
         PanelHost.Content = content;
@@ -309,7 +379,7 @@ public partial class MainWindow : Window
     {
         if (_calendarPanel is null)
         {
-            _calendarPanel = new CalendarPanel();
+            _calendarPanel = new CalendarPanel(_google);
             _calendarPanel.LayoutChanged += () =>
             {
                 if (_state != IslandState.Panel || _panelTab != PanelTab.Calendar) return;
@@ -326,8 +396,14 @@ public partial class MainWindow : Window
 
     HardwarePanel Hardware() => _hardwarePanel ??= new HardwarePanel();
 
+    VolumePanel Volume() => _volumePanel ??= new VolumePanel(_volume);
+
     static double MeasurePanel(UIElement content)
     {
+        // WPF marks only the element that changed as dirty, not its parents, so
+        // a Measure on the root alone returns the stale cached size after a
+        // child grew. Flushing the pending layout first makes it current.
+        content.UpdateLayout();
         content.Measure(new Size(PanelWidth, double.PositiveInfinity));
         return TabStripHeight + Math.Ceiling(content.DesiredSize.Height);
     }
@@ -340,6 +416,27 @@ public partial class MainWindow : Window
         TabCalendar.Foreground = _panelTab == PanelTab.Calendar ? accent : idle;
         TabWeather.Foreground = _panelTab == PanelTab.Weather ? accent : idle;
         TabHardware.Foreground = _panelTab == PanelTab.Hardware ? accent : idle;
+        TabVolume.Foreground = _panelTab == PanelTab.Volume ? accent : idle;
+
+        TabCalendar.Visibility = Visible(_settings.CalendarTab);
+        TabWeather.Visibility = Visible(_settings.WeatherTab);
+        TabHardware.Visibility = Visible(_settings.HardwareTab);
+        TabVolume.Visibility = Visible(_settings.VolumeTab);
+
+        TabDots.Children.Clear();
+        var tabs = EnabledTabs().ToList();
+        if (tabs.Count < 2) return;
+
+        foreach (var tab in tabs)
+        {
+            TabDots.Children.Add(new System.Windows.Shapes.Ellipse
+            {
+                Width = 5,
+                Height = 5,
+                Margin = new Thickness(2.5, 0, 2.5, 0),
+                Fill = tab == _panelTab ? accent : idle
+            });
+        }
     }
 
     void TabCalendar_Click(object sender, MouseButtonEventArgs e) => SwitchTab(e, PanelTab.Calendar);
@@ -347,6 +444,8 @@ public partial class MainWindow : Window
     void TabWeather_Click(object sender, MouseButtonEventArgs e) => SwitchTab(e, PanelTab.Weather);
 
     void TabHardware_Click(object sender, MouseButtonEventArgs e) => SwitchTab(e, PanelTab.Hardware);
+
+    void TabVolume_Click(object sender, MouseButtonEventArgs e) => SwitchTab(e, PanelTab.Volume);
 
     void SwitchTab(MouseButtonEventArgs e, PanelTab tab)
     {
@@ -392,7 +491,7 @@ public partial class MainWindow : Window
         TrackArtist.Text = _media.Artist;
         PlayPauseGlyph.Text = _media.IsPlaying ? GlyphPause : GlyphPlay;
         Artwork.Source = DecodeArtwork(_media.ArtworkBytes);
-        PlayingDot.Visibility = Visible(_media.IsPlaying);
+        PlayingDot.Visibility = Visible(_media.IsPlaying && _settings.MediaExpansion);
 
         string key = _media.StateKey;
         bool isNew = key != _lastMediaKey;
@@ -404,7 +503,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (isNew && _media.HasTrack)
+        if (isNew && MediaOn)
         {
             if (_state is not (IslandState.Osd or IslandState.Panel))
             {
@@ -412,7 +511,7 @@ public partial class MainWindow : Window
                 Hold(MediaDwell);
             }
         }
-        else if (_state == IslandState.Media && !_media.HasTrack)
+        else if (_state == IslandState.Media && !MediaOn)
         {
             Relax();
         }
@@ -558,7 +657,7 @@ public partial class MainWindow : Window
     {
         _hovering = true;
 
-        if (_state == IslandState.Idle && _media.HasTrack)
+        if (_state == IslandState.Idle && MediaOn)
         {
             _collapse.Stop();
             GoTo(IslandState.Media);

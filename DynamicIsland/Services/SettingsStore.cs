@@ -16,11 +16,34 @@ public sealed class Settings
     public string WeatherLocation { get; set; } = "";
 
     public string LastPanel { get; set; } = "Calendar";
+
+    // What the island shows. Everything defaults to on, so an old
+    // settings.json without these keys behaves exactly as before.
+    public bool ShowWeather { get; set; } = true;
+    public bool ShowBattery { get; set; } = true;
+    public bool ShowPrivacyDots { get; set; } = true;
+
+    public bool MediaExpansion { get; set; } = true;
+    public bool VolumeOsd { get; set; } = true;
+    public bool BrightnessOsd { get; set; } = true;
+    public bool BatteryOsd { get; set; } = true;
+
+    public bool CalendarTab { get; set; } = true;
+    public bool WeatherTab { get; set; } = true;
+    public bool HardwareTab { get; set; } = true;
+    public bool VolumeTab { get; set; } = true;
+
+    // Google Calendar. The client id/secret come from the user's own Google
+    // Cloud project (desktop-app credentials); the refresh token is not here,
+    // it lives DPAPI-encrypted in google.token.
+    public string GoogleClientId { get; set; } = "";
+    public string GoogleClientSecret { get; set; } = "";
+    public string GoogleEmail { get; set; } = "";
 }
 
 public static class SettingsStore
 {
-    static readonly string Folder = Path.Combine(
+    internal static readonly string Folder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DynamicIsland");
 
     static readonly string File = Path.Combine(Folder, "settings.json");

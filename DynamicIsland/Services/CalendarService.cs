@@ -15,10 +15,15 @@ public sealed record CalendarEvent(DateTime Start, bool AllDay, string Subject);
 /// is the main reason to prefer this over parsing ICS by hand.
 public sealed class CalendarService
 {
+    readonly GoogleCalendar _google;
     AppointmentStore? _store;
     bool _attempted;
 
-    public bool Available => _store is not null;
+    public CalendarService(GoogleCalendar google) => _google = google;
+
+    /// True when at least one source (Windows or a signed-in Google account)
+    /// can supply events.
+    public bool Available => _store is not null || _google.SignedIn;
 
     /// Null while the store has never been opened, so the UI can tell
     /// "not loaded yet" apart from "loaded, and there is nothing there".
@@ -45,7 +50,39 @@ public sealed class CalendarService
         return _store;
     }
 
+    /// Windows and Google can both carry the same Google account, so identical
+    /// start+subject pairs are collapsed.
     public async Task<IReadOnlyList<CalendarEvent>> LoadRangeAsync(DateTime startLocal, int days)
+    {
+        var windows = LoadWindowsAsync(startLocal, days);
+        var google = LoadGoogleAsync(startLocal, days);
+
+        return (await windows).Concat(await google)
+            .DistinctBy(e => (e.Start, e.Subject))
+            .OrderBy(e => e.Start)
+            .ToList();
+    }
+
+    /// Why the Google events are missing, or null when they loaded fine. Shown
+    /// in the panel: a silent empty list looks exactly like "nothing scheduled".
+    public string? GoogleError { get; private set; }
+
+    async Task<IReadOnlyList<CalendarEvent>> LoadGoogleAsync(DateTime startLocal, int days)
+    {
+        try
+        {
+            var events = await _google.LoadRangeAsync(startLocal, days);
+            GoogleError = null;
+            return events;
+        }
+        catch (Exception ex)
+        {
+            GoogleError = ex.Message;
+            return [];
+        }
+    }
+
+    async Task<IReadOnlyList<CalendarEvent>> LoadWindowsAsync(DateTime startLocal, int days)
     {
         var store = await GetStoreAsync();
         if (store is null) return [];
