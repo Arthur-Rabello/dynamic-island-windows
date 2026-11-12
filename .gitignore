@@ -1,0 +1,13 @@
+# Saída de build
+bin/
+obj/
+publish/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# Nada aqui guarda configuração do app: ela mora em
+# %APPDATA%\DynamicIsland\settings.json, fora do repositório.

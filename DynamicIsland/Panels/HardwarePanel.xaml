@@ -1,0 +1,133 @@
+<UserControl x:Class="DynamicIsland.Panels.HardwarePanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <Style x:Key="MeterName" TargetType="TextBlock" BasedOn="{StaticResource StatLabel}">
+            <Setter Property="Width" Value="40"/>
+        </Style>
+        <Style x:Key="MeterValue" TargetType="TextBlock" BasedOn="{StaticResource StatValue}">
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="Width" Value="42"/>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Margin="16,2,16,16">
+
+        <!-- CPU -->
+        <Grid Margin="0,0,0,9">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="CPU" Style="{StaticResource MeterName}"/>
+            <Grid Grid.Column="1" Height="6" Margin="4,0,10,0" VerticalAlignment="Center">
+                <Border CornerRadius="3" Background="{StaticResource Track}"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="CpuDone" Width="0*"/>
+                        <ColumnDefinition x:Name="CpuLeft" Width="1*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="CpuBar" Grid.Column="0" CornerRadius="3"/>
+                </Grid>
+            </Grid>
+            <TextBlock x:Name="CpuValue" Grid.Column="2" Text="--%" Style="{StaticResource MeterValue}"/>
+        </Grid>
+
+        <!-- GPU -->
+        <Grid Margin="0,0,0,9">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="GPU" Style="{StaticResource MeterName}"/>
+            <Grid Grid.Column="1" Height="6" Margin="4,0,10,0" VerticalAlignment="Center">
+                <Border CornerRadius="3" Background="{StaticResource Track}"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="GpuDone" Width="0*"/>
+                        <ColumnDefinition x:Name="GpuLeft" Width="1*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="GpuBar" Grid.Column="0" CornerRadius="3"/>
+                </Grid>
+            </Grid>
+            <TextBlock x:Name="GpuValue" Grid.Column="2" Text="--%" Style="{StaticResource MeterValue}"/>
+        </Grid>
+
+        <!-- RAM -->
+        <Grid Margin="0,0,0,9">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="RAM" Style="{StaticResource MeterName}"/>
+            <Grid Grid.Column="1" Height="6" Margin="4,0,10,0" VerticalAlignment="Center">
+                <Border CornerRadius="3" Background="{StaticResource Track}"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="RamDone" Width="0*"/>
+                        <ColumnDefinition x:Name="RamLeft" Width="1*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="RamBar" Grid.Column="0" CornerRadius="3"/>
+                </Grid>
+            </Grid>
+            <TextBlock x:Name="RamValue" Grid.Column="2" Text="--%" Style="{StaticResource MeterValue}"/>
+        </Grid>
+
+        <!-- Disk -->
+        <Grid Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Disco" Style="{StaticResource MeterName}"/>
+            <Grid Grid.Column="1" Height="6" Margin="4,0,10,0" VerticalAlignment="Center">
+                <Border CornerRadius="3" Background="{StaticResource Track}"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="DiskDone" Width="0*"/>
+                        <ColumnDefinition x:Name="DiskLeft" Width="1*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="DiskBar" Grid.Column="0" CornerRadius="3"/>
+                </Grid>
+            </Grid>
+            <TextBlock x:Name="DiskValue" Grid.Column="2" Text="--%" Style="{StaticResource MeterValue}"/>
+        </Grid>
+
+        <TextBlock x:Name="RamDetail"
+                   Style="{StaticResource StatLabel}"
+                   FontSize="10.5"
+                   Margin="44,2,0,0"/>
+
+        <Border Height="1" Background="{StaticResource Divider}" Margin="0,11,0,9"/>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <TextBlock Text="&#xE74B;" Style="{StaticResource IconFont}"
+                           FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                <TextBlock x:Name="DownRate" Text="--"
+                           Style="{StaticResource StatValue}" FontSize="11.5"
+                           Margin="7,0,0,0"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <TextBlock Text="&#xE74A;" Style="{StaticResource IconFont}"
+                           FontSize="12" Foreground="{StaticResource TextMuted}"/>
+                <TextBlock x:Name="UpRate" Text="--"
+                           Style="{StaticResource StatValue}" FontSize="11.5"
+                           Margin="7,0,0,0"/>
+            </StackPanel>
+        </Grid>
+
+    </StackPanel>
+</UserControl>
