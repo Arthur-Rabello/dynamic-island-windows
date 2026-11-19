@@ -165,7 +165,8 @@ acontecer:
 .\publish\DynamicIsland.exe --panel=calendar
 ```
 
-`--panel` aceita `calendar`, `weather`, `hardware` ou `volume`. `--settings` abre a janela
+`--panel` aceita `calendar`, `weather`, `hardware` ou `volume`. `--event`
+mostra na pílula um evento de mentira daqui a 12 minutos. `--settings` abre a janela
 de configurações já na inicialização.
 
 Para fechar: ícone na bandeja do sistema → botão direito → Sair.

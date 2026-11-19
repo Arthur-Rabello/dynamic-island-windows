@@ -28,7 +28,8 @@ public partial class SettingsWindow : Window
         Section(ref at, "PÍLULA",
             ("Clima", () => _settings.ShowWeather, v => _settings.ShowWeather = v),
             ("Bateria", () => _settings.ShowBattery, v => _settings.ShowBattery = v),
-            ("Pontos de câmera e microfone", () => _settings.ShowPrivacyDots, v => _settings.ShowPrivacyDots = v));
+            ("Pontos de câmera e microfone", () => _settings.ShowPrivacyDots, v => _settings.ShowPrivacyDots = v),
+            ("Próximo evento da agenda", () => _settings.NextEventInPill, v => _settings.NextEventInPill = v));
 
         Section(ref at, "EXPANSÕES AUTOMÁTICAS",
             ("Música tocando (também o ponto verde)", () => _settings.MediaExpansion, v => _settings.MediaExpansion = v),

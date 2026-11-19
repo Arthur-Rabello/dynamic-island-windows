@@ -22,13 +22,17 @@ public partial class CalendarPanel : UserControl
     DateTime _selected = DateTime.Today;
     IReadOnlyList<CalendarEvent> _events = [];
 
+    /// Whether the day's list shows every event or just the first few.
+    /// Reset whenever another day is selected.
+    bool _expanded;
+
     /// Raised when the grid gained or lost a week, so the window can resize to
     /// the new height instead of leaving a gap or clipping the last row.
     public event Action? LayoutChanged;
 
-    public CalendarPanel(GoogleCalendar google)
+    public CalendarPanel(CalendarService calendar)
     {
-        _calendar = new CalendarService(google);
+        _calendar = calendar;
         InitializeComponent();
         BuildWeekdayHeader();
         Rebuild();
@@ -197,7 +201,9 @@ public partial class CalendarPanel : UserControl
             return;
         }
 
-        foreach (var item in ofDay.Take(MaxListedEvents))
+        // shortcut: no cap when expanded, a day with dozens of events makes a very
+        // tall panel; add a scroll area if that ever happens.
+        foreach (var item in _expanded ? ofDay : ofDay.Take(MaxListedEvents))
         {
             EventList.Children.Add(BuildEventRow(item));
         }
@@ -205,13 +211,23 @@ public partial class CalendarPanel : UserControl
         int hidden = ofDay.Count - MaxListedEvents;
         if (hidden > 0)
         {
-            EventList.Children.Add(new TextBlock
+            var toggle = new TextBlock
             {
-                Text = $"+{hidden} " + (hidden == 1 ? "outro" : "outros"),
-                Foreground = (Brush)FindResource("TextFaint"),
+                Text = _expanded ? "mostrar menos" : $"+{hidden} " + (hidden == 1 ? "outro" : "outros"),
+                Foreground = (Brush)FindResource("TextMuted"),
                 FontSize = 11,
+                Cursor = Cursors.Hand,
                 Margin = new Thickness(0, 3, 0, 0)
-            });
+            };
+
+            toggle.MouseLeftButtonUp += (_, e) =>
+            {
+                e.Handled = true;
+                _expanded = !_expanded;
+                Rebuild();
+            };
+
+            EventList.Children.Add(toggle);
         }
     }
 
@@ -253,6 +269,7 @@ public partial class CalendarPanel : UserControl
 
         e.Handled = true;
         _selected = date;
+        _expanded = false;
 
         // Stepping onto a neighbouring month from an edge cell should follow.
         if (date.Month != _month.Month)
@@ -274,6 +291,7 @@ public partial class CalendarPanel : UserControl
         e.Handled = true;
         _month = _month.AddMonths(months);
         _selected = _month;
+        _expanded = false;
         _ = RefreshAsync();
     }
 
@@ -282,6 +300,7 @@ public partial class CalendarPanel : UserControl
         e.Handled = true;
         _month = FirstOfMonth(DateTime.Today);
         _selected = DateTime.Today;
+        _expanded = false;
         _ = RefreshAsync();
     }
 }

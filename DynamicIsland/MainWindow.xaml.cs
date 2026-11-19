@@ -21,6 +21,9 @@ public partial class MainWindow : Window
     enum PanelTab { Calendar, Weather, Hardware, Volume }
 
     const double CollapsedWidth = 184, CollapsedHeight = 34;
+
+    /// Height of the calendar-event row under the clock (MainWindow.xaml, EventRow).
+    const double EventRowHeight = 28;
     const double MediaWidth = 410, MediaHeight = 104;
     const double OsdWidth = 290, OsdHeight = 54;
     const double PanelWidth = 372;
@@ -60,7 +63,14 @@ public partial class MainWindow : Window
 
     readonly Settings _settings = SettingsStore.Load();
     readonly GoogleCalendar _google;
+    readonly CalendarService _calendar;
     string _weatherLocation;
+
+    // Events of today and tomorrow, refreshed every few minutes. The pill picks
+    // the next one from this list every second without touching the network.
+    readonly DispatcherTimer _agendaTick = new() { Interval = TimeSpan.FromMinutes(5) };
+    IReadOnlyList<CalendarEvent> _upcoming = [];
+    bool _eventPreview;
 
     /// Shared with the settings window, which edits these in place and then
     /// calls ApplySettings.
@@ -95,6 +105,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         _google = new GoogleCalendar(_settings);
+        _calendar = new CalendarService(_google);
         _weatherLocation = _settings.WeatherLocation;
 
         Width = CollapsedWidth;
@@ -154,6 +165,10 @@ public partial class MainWindow : Window
         _weatherTick.Tick += (_, _) => _ = RefreshIdleWeatherAsync();
         _weatherTick.Start();
         _ = RefreshIdleWeatherAsync();
+
+        _agendaTick.Tick += (_, _) => _ = RefreshUpcomingAsync();
+        _agendaTick.Start();
+        _ = RefreshUpcomingAsync();
     }
 
     protected override void OnClosed(EventArgs e)
@@ -173,7 +188,10 @@ public partial class MainWindow : Window
         _weatherLocation = _settings.WeatherLocation;
         if (_weatherPanel is not null) _weatherPanel.Location = _weatherLocation;
 
-        if (_settings.ShowWeather) _ = RefreshIdleWeatherAsync(force: locationChanged);
+        // Also covers a Google sign-in/out, which is committed through here.
+        _ = RefreshUpcomingAsync();
+
+        if (_settings.ShowWeather) _ =RefreshIdleWeatherAsync(force: locationChanged);
         else
         {
             WeatherSeparator.Visibility = IdleWeatherGlyph.Visibility = IdleTemperature.Visibility =
@@ -191,6 +209,55 @@ public partial class MainWindow : Window
         }
         else if (_state == IslandState.Media && !MediaOn) Relax();
 
+        RefreshIdleSize();
+    }
+
+    async Task RefreshUpcomingAsync()
+    {
+        if (_settings.NextEventInPill)
+        {
+            try
+            {
+                var loaded = await _calendar.LoadRangeAsync(DateTime.Today, 2);
+                // The preview may have been set while this load was in flight.
+                if (!_eventPreview) _upcoming = loaded;
+            }
+            catch { /* keep the last list; the calendar panel reports errors */ }
+        }
+
+        RefreshNextEvent();
+    }
+
+    /// Shows "em 28 min · Reunião" in the pill when an event starts soon.
+    void RefreshNextEvent()
+    {
+        var now = DateTime.Now;
+        var limit = now.AddMinutes(_settings.ReminderMinutes);
+
+        // _upcoming is ordered by start. One minute of grace keeps "agora" on
+        // screen while the event is just beginning.
+        var next = _settings.NextEventInPill
+            ? _upcoming.FirstOrDefault(e => !e.AllDay && e.Start > now.AddMinutes(-1) && e.Start <= limit)
+            : null;
+
+        if (next is not null)
+        {
+            int minutes = (int)Math.Ceiling((next.Start - now).TotalMinutes);
+            IdleEvent.Text = (minutes <= 0 ? "agora" : $"em {minutes} min") + " · " + next.Subject;
+        }
+        else IdleEvent.Text = "";
+
+        if (next is not null) EventDay.Text = next.Start.Day.ToString();
+        EventRow.Visibility = Visible(next is not null);
+    }
+
+    /// Pins a made-up event 12 minutes out so the pill layout can be inspected
+    /// without waiting for a real one (--event).
+    public void ShowEventPreview()
+    {
+        _eventPreview = true;
+        _upcoming = [new CalendarEvent(DateTime.Now.AddMinutes(12), false, "Reunião de alinhamento do projeto")];
+        RefreshNextEvent();
         RefreshIdleSize();
     }
 
@@ -238,6 +305,10 @@ public partial class MainWindow : Window
 
     /// The pill is only as wide as what it currently carries, so it stays a
     /// small lozenge when there is nothing to say and grows when there is.
+    /// The pill grows downward by one row while a calendar event is announced.
+    double IdleHeight() =>
+        EventRow.Visibility == Visibility.Visible ? CollapsedHeight + EventRowHeight : CollapsedHeight;
+
     double IdleWidth()
     {
         IdleView.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -249,14 +320,14 @@ public partial class MainWindow : Window
         if (_state != IslandState.Idle) return;
 
         string signature = string.Join('|',
-            IdleClock.Text, IdleDate.Text, IdleTemperature.Text, IdleBattery.Text,
+            IdleClock.Text, IdleDate.Text, IdleEvent.Text, IdleTemperature.Text, IdleBattery.Text,
             IdleWeatherGlyph.Visibility, IdleBatteryGlyph.Visibility,
             CameraDot.Visibility, MicrophoneDot.Visibility, PlayingDot.Visibility);
 
         if (signature == _idleSignature) return;
 
         _idleSignature = signature;
-        AnimateTo(IdleWidth(), CollapsedHeight);
+        AnimateTo(IdleWidth(), IdleHeight());
     }
 
     // ---- state ----------------------------------------------------------
@@ -276,7 +347,7 @@ public partial class MainWindow : Window
             IslandState.Media => (MediaWidth, MediaHeight),
             IslandState.Osd => (OsdWidth, OsdHeight),
             IslandState.Panel => (PanelWidth, _panelHeight),
-            _ => (IdleWidth(), CollapsedHeight)
+            _ => (IdleWidth(), IdleHeight())
         };
 
         AnimateTo(width, height);
@@ -379,7 +450,7 @@ public partial class MainWindow : Window
     {
         if (_calendarPanel is null)
         {
-            _calendarPanel = new CalendarPanel(_google);
+            _calendarPanel = new CalendarPanel(_calendar);
             _calendarPanel.LayoutChanged += () =>
             {
                 if (_state != IslandState.Panel || _panelTab != PanelTab.Calendar) return;
@@ -541,6 +612,7 @@ public partial class MainWindow : Window
         IdleClock.Text = now.ToString("HH:mm", Culture);
         IdleDate.Text = now.ToString("ddd, dd MMM", Culture);
 
+        RefreshNextEvent();
         RefreshBattery();
         RefreshIdleSize();
 

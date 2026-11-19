@@ -28,9 +28,11 @@
 
             <!-- Collapsed: clock, weather, battery and the privacy dots -->
             <StackPanel x:Name="IdleView"
-                        Orientation="Horizontal"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center">
+
+              <!-- Row 1: always there, exactly the collapsed pill's height -->
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Height="34">
 
                 <Ellipse x:Name="PlayingDot"
                          Width="6" Height="6"
@@ -109,6 +111,42 @@
                          Margin="7,0,0,0"
                          ToolTip="Microfone em uso"
                          Visibility="Collapsed"/>
+
+              </StackPanel>
+
+              <!-- Row 2: the next calendar event, only when it starts within ReminderMinutes -->
+              <StackPanel x:Name="EventRow"
+                          Orientation="Horizontal"
+                          HorizontalAlignment="Center"
+                          Height="28"
+                          Visibility="Collapsed">
+
+                  <!-- A drawn calendar icon (white tile, blue top, the event's day), not the official logo -->
+                  <Border Width="17" Height="17"
+                          CornerRadius="4"
+                          Background="White"
+                          ClipToBounds="True"
+                          VerticalAlignment="Center">
+                      <Grid>
+                          <Border Height="5" VerticalAlignment="Top" Background="#FF4285F4"/>
+                          <TextBlock x:Name="EventDay"
+                                     FontSize="9.5"
+                                     FontWeight="Bold"
+                                     Foreground="#FF4285F4"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Bottom"
+                                     Margin="0,0,0,1"/>
+                      </Grid>
+                  </Border>
+
+                  <TextBlock x:Name="IdleEvent"
+                             Foreground="{StaticResource TextPrimary}"
+                             FontSize="12.5"
+                             MaxWidth="280"
+                             TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center"
+                             Margin="8,0,0,0"/>
+              </StackPanel>
 
             </StackPanel>
 

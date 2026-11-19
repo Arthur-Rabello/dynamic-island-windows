@@ -23,6 +23,10 @@ public sealed class Settings
     public bool ShowBattery { get; set; } = true;
     public bool ShowPrivacyDots { get; set; } = true;
 
+    /// The pill announces the next calendar event this many minutes ahead.
+    public bool NextEventInPill { get; set; } = true;
+    public int ReminderMinutes { get; set; } = 30;
+
     public bool MediaExpansion { get; set; } = true;
     public bool VolumeOsd { get; set; } = true;
     public bool BrightnessOsd { get; set; } = true;

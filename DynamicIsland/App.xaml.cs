@@ -37,6 +37,8 @@ public partial class App : Application
             if (panel is not null) window.ShowPanelPreview(panel["--panel=".Length..]);
         }
 
+        if (e.Args.Contains("--event", StringComparer.OrdinalIgnoreCase)) window.ShowEventPreview();
+
         var menu = new ContextMenuStrip();
         menu.Items.Add("Configurações", null, (_, _) => OpenSettings(window));
         menu.Items.Add("Sair", null, (_, _) => Shutdown());
