@@ -16,7 +16,7 @@ namespace DynamicIsland;
 
 public partial class MainWindow : Window
 {
-    enum IslandState { Idle, Media, Osd, Panel }
+    enum IslandState { Idle, Media, Osd, Panel, Overview }
 
     enum PanelTab { Calendar, Weather, Hardware, Volume }
 
@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     const double MediaWidth = 410, MediaHeight = 104;
     const double OsdWidth = 290, OsdHeight = 54;
     const double PanelWidth = 372;
+    const double OverviewWidth = 440;
 
     /// Height of the tab strip above the panel content.
     const double TabStripHeight = 38;
@@ -80,6 +81,14 @@ public partial class MainWindow : Window
     CalendarPanel? _calendarPanel;
     WeatherPanel? _weatherPanel;
     HardwarePanel? _hardwarePanel;
+    OverviewPanel? _overviewPanel;
+
+    /// One set of performance counters for both the hardware panel and the
+    /// overview card.
+    readonly HardwareService _hardware = new();
+
+    readonly DispatcherTimer _overviewTick = new() { Interval = TimeSpan.FromSeconds(1) };
+    double _overviewHeight = 420;
     VolumePanel? _volumePanel;
 
     IslandState _state = IslandState.Idle;
@@ -161,6 +170,12 @@ public partial class MainWindow : Window
 
         _privacy.Changed += () => Dispatcher.Invoke(RefreshPrivacy);
         _privacy.Start();
+
+        _overviewTick.Tick += (_, _) => TickOverview();
+
+        // Enumerating the GPU engine instances is the slow part, so it happens
+        // now, in the background, instead of on the first hover.
+        _ = _hardware.SampleAsync();
 
         _weatherTick.Tick += (_, _) => _ = RefreshIdleWeatherAsync();
         _weatherTick.Start();
@@ -341,12 +356,16 @@ public partial class MainWindow : Window
         MediaView.Visibility = Visible(state == IslandState.Media);
         OsdView.Visibility = Visible(state == IslandState.Osd);
         PanelView.Visibility = Visible(state == IslandState.Panel);
+        OverviewHost.Visibility = Visible(state == IslandState.Overview);
+
+        if (state != IslandState.Overview) _overviewTick.Stop();
 
         var (width, height) = state switch
         {
             IslandState.Media => (MediaWidth, MediaHeight),
             IslandState.Osd => (OsdWidth, OsdHeight),
             IslandState.Panel => (PanelWidth, _panelHeight),
+            IslandState.Overview => (OverviewWidth, _overviewHeight),
             _ => (IdleWidth(), IdleHeight())
         };
 
@@ -358,7 +377,100 @@ public partial class MainWindow : Window
     void Relax()
     {
         if (_panelOpen) { GoTo(IslandState.Panel); return; }
-        GoTo(_hovering && MediaOn ? IslandState.Media : IslandState.Idle);
+        if (_hovering) { ShowOverview(); return; }
+        GoTo(IslandState.Idle);
+    }
+
+    // ---- overview -------------------------------------------------------
+
+    OverviewPanel Overview()
+    {
+        if (_overviewPanel is null)
+        {
+            _overviewPanel = new OverviewPanel(_media, _weather, _hardware, _volume, _settings);
+            _overviewPanel.CardClicked += tab =>
+            {
+                if (tab == "Media") { GoTo(IslandState.Media); Hold(MediaDwell); return; }
+                if (Enum.TryParse<PanelTab>(tab, out var panel)) OpenPanel(panel);
+            };
+        }
+
+        return _overviewPanel;
+    }
+
+    void ShowOverview()
+    {
+        var panel = Overview();
+
+        OverviewHost.Content = panel;
+        // Measure needs the host visible; GoTo keeps it that way afterwards.
+        OverviewHost.Visibility = Visibility.Visible;
+
+        SyncOverviewPill();
+        panel.Render(_upcoming);
+        _overviewHeight = MeasureOverview(panel);
+
+        GoTo(IslandState.Overview);
+
+        _ = panel.RefreshAsync();
+        _overviewTick.Start();
+    }
+
+    /// Opens the overview with one running and one upcoming event, so the
+    /// agenda timeline can be inspected without waiting for a real meeting
+    /// (--overview).
+    public void ShowOverviewPreview()
+    {
+        _eventPreview = true;
+        var now = DateTime.Now;
+        _upcoming =
+        [
+            new CalendarEvent(now.AddMinutes(-15), false, "Valdicleide e Equipamentos Next Fit", TimeSpan.FromMinutes(30)),
+            new CalendarEvent(now.AddMinutes(75), false, "Reunião NR — análise", TimeSpan.FromHours(1))
+        ];
+
+        _hovering = true;
+        ShowOverview();
+    }
+
+    void TickOverview()
+    {
+        if (_state != IslandState.Overview || _overviewPanel is null) return;
+
+        SyncOverviewPill();
+        _overviewPanel.Render(_upcoming);
+        _ = _overviewPanel.RefreshAsync();
+
+        double height = MeasureOverview(_overviewPanel);
+        if (Math.Abs(height - _overviewHeight) > 1)
+        {
+            _overviewHeight = height;
+            AnimateTo(OverviewWidth, height);
+        }
+    }
+
+    /// The overview draws its own copy of the pill, because a control cannot be
+    /// in two places at once; this keeps the copy showing the same thing.
+    void SyncOverviewPill() => _overviewPanel?.SetPill(
+        IdleClock.Text,
+        IdleDate.Text,
+        Shown(IdleWeatherGlyph) ? IdleWeatherGlyph.Text : null,
+        Shown(IdleTemperature) ? IdleTemperature.Text : null,
+        Shown(IdleBatteryGlyph) ? IdleBatteryGlyph.Text : null,
+        Shown(IdleBattery) ? IdleBattery.Text : null);
+
+    static bool Shown(UIElement element) => element.Visibility == Visibility.Visible;
+
+    /// Returns 0 until the host has had a layout pass, which on the very first
+    /// open happens after this runs. The caller keeps its previous height in
+    /// that case and the next tick corrects it.
+    double MeasureOverview(UIElement content)
+    {
+        OverviewHost.UpdateLayout();
+        content.Measure(new Size(OverviewWidth, double.PositiveInfinity));
+
+        double height = Math.Ceiling(content.DesiredSize.Height);
+        return height < 100 ? _overviewHeight : height;
     }
 
     /// Media expansion is a user option, so "there is a track" is not enough.
@@ -465,7 +577,7 @@ public partial class MainWindow : Window
     WeatherPanel Weather() =>
         _weatherPanel ??= new WeatherPanel(_weather) { Location = _settings.WeatherLocation };
 
-    HardwarePanel Hardware() => _hardwarePanel ??= new HardwarePanel();
+    HardwarePanel Hardware() => _hardwarePanel ??= new HardwarePanel(_hardware);
 
     VolumePanel Volume() => _volumePanel ??= new VolumePanel(_volume);
 
@@ -561,7 +673,7 @@ public partial class MainWindow : Window
         TrackTitle.Text = _media.Title.Length > 0 ? _media.Title : "Reproduzindo";
         TrackArtist.Text = _media.Artist;
         PlayPauseGlyph.Text = _media.IsPlaying ? GlyphPause : GlyphPlay;
-        Artwork.Source = DecodeArtwork(_media.ArtworkBytes);
+        Artwork.Source = Services.Artwork.Decode(_media.ArtworkBytes);
         PlayingDot.Visibility = Visible(_media.IsPlaying && _settings.MediaExpansion);
 
         string key = _media.StateKey;
@@ -576,7 +688,10 @@ public partial class MainWindow : Window
 
         if (isNew && MediaOn)
         {
-            if (_state is not (IslandState.Osd or IslandState.Panel))
+            // The overview already shows the track, so a change there should
+            // refresh the card rather than replace the panel with the pop-up.
+            if (_state == IslandState.Overview) _overviewPanel?.Render(_upcoming);
+            else if (_state is not (IslandState.Osd or IslandState.Panel))
             {
                 GoTo(IslandState.Media);
                 Hold(MediaDwell);
@@ -586,24 +701,6 @@ public partial class MainWindow : Window
         {
             Relax();
         }
-    }
-
-    static ImageSource? DecodeArtwork(byte[]? bytes)
-    {
-        if (bytes is null || bytes.Length == 0) return null;
-
-        try
-        {
-            var image = new BitmapImage();
-            image.BeginInit();
-            image.CacheOption = BitmapCacheOption.OnLoad;
-            image.DecodePixelWidth = 160;
-            image.StreamSource = new MemoryStream(bytes);
-            image.EndInit();
-            image.Freeze();
-            return image;
-        }
-        catch { return null; }
     }
 
     void OnTick()
@@ -729,10 +826,10 @@ public partial class MainWindow : Window
     {
         _hovering = true;
 
-        if (_state == IslandState.Idle && MediaOn)
+        if (_state is IslandState.Idle or IslandState.Media)
         {
             _collapse.Stop();
-            GoTo(IslandState.Media);
+            ShowOverview();
         }
     }
 
@@ -740,7 +837,7 @@ public partial class MainWindow : Window
     {
         _hovering = false;
 
-        if (_state == IslandState.Media) Hold(HoverExitDelay);
+        if (_state is IslandState.Media or IslandState.Overview) Hold(HoverExitDelay);
     }
 
     void Island_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)

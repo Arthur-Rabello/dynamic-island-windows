@@ -2,7 +2,14 @@ using Windows.ApplicationModel.Appointments;
 
 namespace DynamicIsland.Services;
 
-public sealed record CalendarEvent(DateTime Start, bool AllDay, string Subject);
+/// Duration defaults to zero so callers that only care about the start, like
+/// the pill reminder, keep constructing these with three arguments.
+public sealed record CalendarEvent(DateTime Start, bool AllDay, string Subject, TimeSpan Duration = default)
+{
+    public DateTime End => Start + Duration;
+
+    public bool IsRunning(DateTime now) => !AllDay && Start <= now && now < End;
+}
 
 /// Reads every calendar registered with Windows, read-only.
 ///
@@ -102,7 +109,8 @@ public sealed class CalendarService
                 .Select(a => new CalendarEvent(
                     a.StartTime.LocalDateTime,
                     a.AllDay,
-                    string.IsNullOrWhiteSpace(a.Subject) ? "(sem título)" : a.Subject))
+                    string.IsNullOrWhiteSpace(a.Subject) ? "(sem título)" : a.Subject,
+                    a.Duration))
                 .OrderBy(e => e.Start)
                 .ToList();
         }

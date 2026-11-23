@@ -18,30 +18,35 @@ public partial class HardwarePanel : UserControl
     static readonly Brush Warn = Freeze(Color.FromRgb(0xF5, 0xA5, 0x24));
     static readonly Brush Critical = Freeze(Color.FromRgb(0xEF, 0x44, 0x44));
 
-    readonly HardwareService _hardware = new();
+    readonly HardwareService _hardware;
     readonly Brush _accent = AccentColor.Brush();
     readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(1) };
 
-    public HardwarePanel()
+    /// Shares the window's service with the overview panel: one set of
+    /// counters, one cached reading, no duplicated sampling.
+    public HardwarePanel(HardwareService hardware)
     {
+        _hardware = hardware;
         InitializeComponent();
-        _timer.Tick += (_, _) => Sample();
+        _timer.Tick += (_, _) => _ = SampleAsync();
     }
 
     /// Sampling is the most expensive thing the app does, so it runs only
-    /// while this panel is actually on screen.
+    /// while this panel is actually on screen. The cached reading is painted
+    /// first so the panel never opens blank waiting on the counters.
     public void Activate()
     {
-        Sample();
+        Render(_hardware.Latest);
+        _ = SampleAsync();
         _timer.Start();
     }
 
     public void Deactivate() => _timer.Stop();
 
-    void Sample()
-    {
-        var reading = _hardware.Sample();
+    async Task SampleAsync() => Render(await _hardware.SampleAsync());
 
+    void Render(HardwareReading reading)
+    {
         Apply(CpuDone, CpuLeft, CpuBar, CpuValue, reading.CpuPercent);
         Apply(GpuDone, GpuLeft, GpuBar, GpuValue, reading.GpuPercent);
         Apply(RamDone, RamLeft, RamBar, RamValue, reading.RamPercent);

@@ -59,6 +59,30 @@ public sealed class HardwareService : IDisposable
     long _lastDown, _lastUp;
     DateTime _lastNetSample = DateTime.MinValue;
 
+    /// Last reading taken, so a panel can paint something the instant it opens
+    /// instead of waiting on the counters.
+    public HardwareReading Latest { get; private set; } =
+        new(0, 0, 0, 0, 0, 0, 0, 0);
+
+    /// Samples off the UI thread. Enumerating the GPU engine instances blocks
+    /// for long enough to be seen as a freeze when the panel is opening, which
+    /// is the whole reason this is not just Sample().
+    ///
+    /// The mutable delta fields below are not thread-safe, so an overlapping
+    /// call returns the previous reading rather than corrupting them.
+    public async Task<HardwareReading> SampleAsync()
+    {
+        if (!await _gate.WaitAsync(0)) return Latest;
+
+        try { Latest = await Task.Run(Sample); }
+        catch { /* keep the last good reading */ }
+        finally { _gate.Release(); }
+
+        return Latest;
+    }
+
+    readonly SemaphoreSlim _gate = new(1, 1);
+
     public HardwareReading Sample()
     {
         var (down, up) = SampleNetwork();

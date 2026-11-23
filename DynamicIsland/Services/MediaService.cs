@@ -120,9 +120,29 @@ public sealed class MediaService
         try
         {
             var timeline = _session?.GetTimelineProperties();
-            return timeline is null
-                ? (TimeSpan.Zero, TimeSpan.Zero)
-                : (timeline.Position, timeline.EndTime);
+            if (timeline is null) return (TimeSpan.Zero, TimeSpan.Zero);
+
+            var position = timeline.Position;
+            var end = timeline.EndTime;
+
+            // Windows does not advance Position on its own: each app pushes a
+            // new timeline every few seconds, so a one-second poll reads the
+            // same value and then jumps. LastUpdatedTime is the instant that
+            // position was true, so adding the time elapsed since then gives a
+            // bar that actually moves.
+            if (IsPlaying)
+            {
+                var since = DateTimeOffset.Now - timeline.LastUpdatedTime;
+
+                // A stale or bogus stamp would race the bar to the end, so only
+                // a plausible gap is trusted.
+                if (since > TimeSpan.Zero && since < TimeSpan.FromMinutes(1))
+                    position += since;
+            }
+
+            if (end > TimeSpan.Zero && position > end) position = end;
+
+            return (position, end);
         }
         catch { return (TimeSpan.Zero, TimeSpan.Zero); }
     }

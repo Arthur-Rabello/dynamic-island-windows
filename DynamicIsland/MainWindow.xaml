@@ -293,6 +293,9 @@
                 <ContentControl x:Name="PanelHost" Grid.Row="1"/>
             </Grid>
 
+            <!-- Hover: one card per live function -->
+            <ContentControl x:Name="OverviewHost" Visibility="Collapsed"/>
+
         </Grid>
     </Border>
 </Window>

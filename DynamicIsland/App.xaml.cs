@@ -25,7 +25,11 @@ public partial class App : Application
         var window = new MainWindow();
         window.Show();
 
-        if (e.Args.Contains("--demo", StringComparer.OrdinalIgnoreCase))
+        if (e.Args.Contains("--overview", StringComparer.OrdinalIgnoreCase))
+        {
+            window.ShowOverviewPreview();
+        }
+        else if (e.Args.Contains("--demo", StringComparer.OrdinalIgnoreCase))
         {
             window.ShowLayoutPreview();
         }

@@ -194,10 +194,15 @@ public sealed class GoogleCalendar
             return _access;
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("expired or revoked")
-                                                   || ex.Message.Contains("invalid_grant"))
+                                                   || ex.Message.Contains("invalid_grant")
+                                                   || ex.Message.Contains("Could not determine client ID")
+                                                   || ex.Message.Contains("unauthorized_client"))
         {
-            // The grant is gone (revoked, or the 7-day Testing limit). Forget it
-            // so the settings window offers to sign in again instead of failing silently.
+            // The grant is gone (revoked, or the 7-day Testing limit), or it was
+            // minted for a different OAuth client than the one now configured —
+            // swapping the client id leaves a token Google cannot match. Forget
+            // it so the settings window offers to sign in again instead of
+            // repeating an error the user cannot act on.
             try { File.Delete(TokenFile); } catch { }
             _access = null;
             _settings.GoogleEmail = "";
@@ -260,9 +265,20 @@ public sealed class GoogleCalendar
             ? s.GetString()! : "(sem título)";
 
         var start = item.GetProperty("start");
-        return start.TryGetProperty("dateTime", out var dt)
-            ? new CalendarEvent(DateTimeOffset.Parse(dt.GetString()!).LocalDateTime, false, subject)
-            : new CalendarEvent(DateTime.Parse(start.GetProperty("date").GetString()!), true, subject);
+        if (!start.TryGetProperty("dateTime", out var dt))
+            return new CalendarEvent(DateTime.Parse(start.GetProperty("date").GetString()!), true, subject);
+
+        var from = DateTimeOffset.Parse(dt.GetString()!);
+
+        // A malformed or absent end leaves a zero duration, which reads as
+        // "not running" rather than as an event that never finishes.
+        var to = item.TryGetProperty("end", out var end)
+            && end.TryGetProperty("dateTime", out var endDt)
+            && DateTimeOffset.TryParse(endDt.GetString(), out var parsed)
+                ? parsed
+                : from;
+
+        return new CalendarEvent(from.LocalDateTime, false, subject, to - from);
     }
 
     static async Task<JsonDocument> GetAsync(string token, string url)
