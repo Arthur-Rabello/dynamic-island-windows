@@ -41,7 +41,8 @@ public partial class SettingsWindow : Window
             ("Calendário", () => _settings.CalendarTab, v => _settings.CalendarTab = v),
             ("Tempo", () => _settings.WeatherTab, v => _settings.WeatherTab = v),
             ("Hardware", () => _settings.HardwareTab, v => _settings.HardwareTab = v),
-            ("Controle de volume", () => _settings.VolumeTab, v => _settings.VolumeTab = v));
+            ("Controle de volume", () => _settings.VolumeTab, v => _settings.VolumeTab = v),
+            ("Mensagens", () => _settings.MessagesTab, v => _settings.MessagesTab = v));
 
         City.Text = _settings.WeatherLocation;
         MessageApp.Text = _settings.MessageApp;

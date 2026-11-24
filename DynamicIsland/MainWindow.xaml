@@ -274,6 +274,11 @@
                                    Style="{StaticResource TabIcon}"
                                    ToolTip="Volume"
                                    MouseLeftButtonUp="TabVolume_Click"/>
+                        <TextBlock x:Name="TabMessages"
+                                   Text="&#xE8F2;"
+                                   Style="{StaticResource TabIcon}"
+                                   ToolTip="Mensagens"
+                                   MouseLeftButtonUp="TabMessages_Click"/>
                     </StackPanel>
 
                     <!-- One dot per enabled tab, the current one lit -->

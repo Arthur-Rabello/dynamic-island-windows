@@ -99,11 +99,44 @@ public sealed class HardwareService : IDisposable
             UpBytesPerSecond: up);
     }
 
+    PerformanceCounter? _cpu;
+    bool _cpuTried;
+
+    /// Task Manager reports "% Processor Utility", which normalises against the
+    /// base clock, not "% Processor Time", which is pure elapsed time. With
+    /// speed shift the two diverge badly: this machine read 100% by time while
+    /// Task Manager showed 77%. Preferring Utility makes the island agree with
+    /// the number the user can check, and GetSystemTimes stays as the fallback
+    /// for a machine that lacks the counter.
+    double SampleCpuUtility()
+    {
+        if (!_cpuTried)
+        {
+            _cpuTried = true;
+            try
+            {
+                _cpu = new PerformanceCounter(
+                    "Processor Information", "% Processor Utility", "_Total", true);
+                _cpu.NextValue();
+            }
+            catch { _cpu = null; }
+        }
+
+        if (_cpu is null) return -1;
+
+        // Turbo can push Utility past 100.
+        try { return Math.Clamp(_cpu.NextValue(), 0, 100); }
+        catch { _cpu = null; return -1; }
+    }
+
     // GetSystemTimes rather than a counter: no category lookup, no first-read
     // warm-up, and the kernel bucket already includes idle so the maths is a
     // straight ratio of deltas.
     double SampleCpu()
     {
+        double utility = SampleCpuUtility();
+        if (utility >= 0) return utility;
+
         if (!GetSystemTimes(out long idle, out long kernel, out long user)) return 0;
 
         if (!_cpuPrimed)

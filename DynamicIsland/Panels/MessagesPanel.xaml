@@ -1,0 +1,15 @@
+<UserControl x:Class="DynamicIsland.Panels.MessagesPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <StackPanel Margin="16,2,16,16">
+        <TextBlock x:Name="Empty"
+                   Text="Nenhuma mensagem desde que a ilha abriu."
+                   Foreground="{StaticResource TextFaint}"
+                   FontSize="11.5"
+                   TextWrapping="Wrap"
+                   Visibility="Collapsed"/>
+
+        <StackPanel x:Name="List"/>
+    </StackPanel>
+</UserControl>

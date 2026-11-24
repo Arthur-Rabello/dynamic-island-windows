@@ -18,7 +18,7 @@ public partial class MainWindow : Window
 {
     enum IslandState { Idle, Media, Osd, Panel, Overview, Message }
 
-    enum PanelTab { Calendar, Weather, Hardware, Volume }
+    enum PanelTab { Calendar, Weather, Hardware, Volume, Messages }
 
     const double CollapsedWidth = 184, CollapsedHeight = 34;
 
@@ -84,6 +84,7 @@ public partial class MainWindow : Window
     WeatherPanel? _weatherPanel;
     HardwarePanel? _hardwarePanel;
     OverviewPanel? _overviewPanel;
+    MessagesPanel? _messagesPanel;
 
     /// One set of performance counters for both the hardware panel and the
     /// overview card.
@@ -396,6 +397,9 @@ public partial class MainWindow : Window
     /// rather than snatching a pinned panel or the hover overview away.
     void ShowMessage(IncomingMessage message)
     {
+        // The list is live whether or not the pop is welcome right now.
+        if (_panelOpen && _panelTab == PanelTab.Messages) _messagesPanel?.Refresh();
+
         if (_panelOpen || _state == IslandState.Overview) return;
 
         MessageInitial.Text = message.Sender.Length > 0
@@ -532,7 +536,9 @@ public partial class MainWindow : Window
         PanelTab.Calendar => _settings.CalendarTab,
         PanelTab.Weather => _settings.WeatherTab,
         PanelTab.Hardware => _settings.HardwareTab,
-        _ => _settings.VolumeTab
+        PanelTab.Volume => _settings.VolumeTab,
+        // Without an app to watch there is nothing the tab could ever show.
+        _ => _settings.MessagesTab && _settings.MessageApp.Length > 0
     };
 
     IEnumerable<PanelTab> EnabledTabs() => Enum.GetValues<PanelTab>().Where(TabOn);
@@ -558,7 +564,8 @@ public partial class MainWindow : Window
             PanelTab.Calendar => Calendar(),
             PanelTab.Weather => Weather(),
             PanelTab.Hardware => Hardware(),
-            _ => Volume()
+            PanelTab.Volume => Volume(),
+            _ => Messages()
         };
 
         PanelHost.Content = content;
@@ -572,6 +579,7 @@ public partial class MainWindow : Window
             case PanelTab.Calendar: _ = Calendar().RefreshAsync(); break;
             case PanelTab.Weather: _ = Weather().RefreshAsync(); break;
             case PanelTab.Hardware: Hardware().Activate(); break;
+            case PanelTab.Messages: Messages().Refresh(); break;
         }
 
         _settings.LastPanel = tab.ToString();
@@ -622,6 +630,22 @@ public partial class MainWindow : Window
 
     VolumePanel Volume() => _volumePanel ??= new VolumePanel(_volume);
 
+    MessagesPanel Messages()
+    {
+        if (_messagesPanel is null)
+        {
+            _messagesPanel = new MessagesPanel(_notifications);
+            _messagesPanel.LayoutChanged += () =>
+            {
+                if (_state != IslandState.Panel || _panelTab != PanelTab.Messages) return;
+                _panelHeight = MeasurePanel(_messagesPanel);
+                AnimateTo(PanelWidth, _panelHeight);
+            };
+        }
+
+        return _messagesPanel;
+    }
+
     static double MeasurePanel(UIElement content)
     {
         // WPF marks only the element that changed as dirty, not its parents, so
@@ -641,11 +665,13 @@ public partial class MainWindow : Window
         TabWeather.Foreground = _panelTab == PanelTab.Weather ? accent : idle;
         TabHardware.Foreground = _panelTab == PanelTab.Hardware ? accent : idle;
         TabVolume.Foreground = _panelTab == PanelTab.Volume ? accent : idle;
+        TabMessages.Foreground = _panelTab == PanelTab.Messages ? accent : idle;
 
         TabCalendar.Visibility = Visible(_settings.CalendarTab);
         TabWeather.Visibility = Visible(_settings.WeatherTab);
         TabHardware.Visibility = Visible(_settings.HardwareTab);
         TabVolume.Visibility = Visible(_settings.VolumeTab);
+        TabMessages.Visibility = Visible(TabOn(PanelTab.Messages));
 
         TabDots.Children.Clear();
         var tabs = EnabledTabs().ToList();
@@ -670,6 +696,8 @@ public partial class MainWindow : Window
     void TabHardware_Click(object sender, MouseButtonEventArgs e) => SwitchTab(e, PanelTab.Hardware);
 
     void TabVolume_Click(object sender, MouseButtonEventArgs e) => SwitchTab(e, PanelTab.Volume);
+
+    void TabMessages_Click(object sender, MouseButtonEventArgs e) => SwitchTab(e, PanelTab.Messages);
 
     void SwitchTab(MouseButtonEventArgs e, PanelTab tab)
     {

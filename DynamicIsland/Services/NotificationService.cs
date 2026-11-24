@@ -43,6 +43,14 @@ public sealed class NotificationService
 
     public event Action<IncomingMessage>? Arrived;
 
+    const int Keep = 20;
+
+    readonly List<IncomingMessage> _recent = [];
+
+    /// Newest first. In memory only: notification text is not something to
+    /// leave on disk, and the island has no use for it past this session.
+    public IReadOnlyList<IncomingMessage> Recent => _recent;
+
     public async Task StartAsync()
     {
         try
@@ -94,7 +102,12 @@ public sealed class NotificationService
             if (!_primed) continue;
 
             var message = Read(toast);
-            if (message is not null) Arrived?.Invoke(message);
+            if (message is null) continue;
+
+            _recent.Insert(0, message);
+            if (_recent.Count > Keep) _recent.RemoveRange(Keep, _recent.Count - Keep);
+
+            Arrived?.Invoke(message);
         }
 
         _primed = true;
