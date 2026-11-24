@@ -44,6 +44,7 @@ public partial class SettingsWindow : Window
             ("Controle de volume", () => _settings.VolumeTab, v => _settings.VolumeTab = v));
 
         City.Text = _settings.WeatherLocation;
+        MessageApp.Text = _settings.MessageApp;
         ClientId.Text = _settings.GoogleClientId;
         ClientSecret.Text = _settings.GoogleClientSecret;
         ClientId.LostFocus += (_, _) => SaveClient();
@@ -67,6 +68,7 @@ public partial class SettingsWindow : Window
         // Closing a window does not raise LostFocus on the control that has it,
         // so text typed and then left focused would be thrown away.
         SaveCity();
+        SaveMessageApp();
         SaveClient();
 
         base.OnClosed(e);
@@ -116,6 +118,17 @@ public partial class SettingsWindow : Window
         if (city == _settings.WeatherLocation) return;
 
         _settings.WeatherLocation = city;
+        Commit();
+    }
+
+    void MessageApp_LostFocus(object sender, RoutedEventArgs e) => SaveMessageApp();
+
+    void SaveMessageApp()
+    {
+        string app = MessageApp.Text.Trim();
+        if (app == _settings.MessageApp) return;
+
+        _settings.MessageApp = app;
         Commit();
     }
 

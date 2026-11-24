@@ -40,6 +40,10 @@ public sealed class Settings
     // Google Calendar. The client id/secret come from the user's own Google
     // Cloud project (desktop-app credentials); the refresh token is not here,
     // it lives DPAPI-encrypted in google.token.
+    /// Display name or AppUserModelId of the app whose notifications pop in
+    /// the island. Empty keeps the feature off.
+    public string MessageApp { get; set; } = "";
+
     public string GoogleClientId { get; set; } = "";
     public string GoogleClientSecret { get; set; } = "";
     public string GoogleEmail { get; set; } = "";

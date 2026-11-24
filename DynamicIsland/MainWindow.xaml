@@ -293,6 +293,37 @@
                 <ContentControl x:Name="PanelHost" Grid.Row="1"/>
             </Grid>
 
+            <!-- A toast from the watched app -->
+            <Grid x:Name="MessageView" Visibility="Collapsed" Margin="16,0,16,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Width="38" Height="38" CornerRadius="19"
+                        Background="#FF25D366" VerticalAlignment="Center">
+                    <TextBlock x:Name="MessageInitial"
+                               Foreground="#FF0A0A0A"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Border>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="13,0,0,0">
+                    <TextBlock x:Name="MessageSender"
+                               Foreground="White"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="MessagePreview"
+                               Foreground="{StaticResource TextMuted}"
+                               FontSize="11.5"
+                               TextTrimming="CharacterEllipsis"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Grid>
+
             <!-- Hover: one card per live function -->
             <ContentControl x:Name="OverviewHost" Visibility="Collapsed"/>
 

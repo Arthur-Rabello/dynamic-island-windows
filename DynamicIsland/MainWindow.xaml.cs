@@ -16,7 +16,7 @@ namespace DynamicIsland;
 
 public partial class MainWindow : Window
 {
-    enum IslandState { Idle, Media, Osd, Panel, Overview }
+    enum IslandState { Idle, Media, Osd, Panel, Overview, Message }
 
     enum PanelTab { Calendar, Weather, Hardware, Volume }
 
@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     const double OsdWidth = 290, OsdHeight = 54;
     const double PanelWidth = 372;
     const double OverviewWidth = 440;
+    const double MessageWidth = 420, MessageHeight = 72;
 
     /// Height of the tab strip above the panel content.
     const double TabStripHeight = 38;
@@ -54,6 +55,7 @@ public partial class MainWindow : Window
     readonly BrightnessMonitor _brightness = new();
     readonly PowerMonitor _power = new();
     readonly PrivacyMonitor _privacy = new();
+    readonly NotificationService _notifications = new();
     readonly WeatherService _weather = new();
 
     readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -171,6 +173,10 @@ public partial class MainWindow : Window
         _privacy.Changed += () => Dispatcher.Invoke(RefreshPrivacy);
         _privacy.Start();
 
+        _notifications.AppFilter = _settings.MessageApp;
+        _notifications.Arrived += message => Dispatcher.Invoke(() => ShowMessage(message));
+        _ = _notifications.StartAsync();
+
         _overviewTick.Tick += (_, _) => TickOverview();
 
         // Enumerating the GPU engine instances is the slow part, so it happens
@@ -190,6 +196,7 @@ public partial class MainWindow : Window
     {
         _brightness.Stop();
         _privacy.Stop();
+        _notifications.Stop();
         _hardwarePanel?.Deactivate();
         base.OnClosed(e);
     }
@@ -212,6 +219,8 @@ public partial class MainWindow : Window
             WeatherSeparator.Visibility = IdleWeatherGlyph.Visibility = IdleTemperature.Visibility =
                 Visibility.Collapsed;
         }
+
+        _notifications.AppFilter = _settings.MessageApp;
 
         RefreshBattery();
         RefreshPrivacy();
@@ -357,6 +366,7 @@ public partial class MainWindow : Window
         OsdView.Visibility = Visible(state == IslandState.Osd);
         PanelView.Visibility = Visible(state == IslandState.Panel);
         OverviewHost.Visibility = Visible(state == IslandState.Overview);
+        MessageView.Visibility = Visible(state == IslandState.Message);
 
         if (state != IslandState.Overview) _overviewTick.Stop();
 
@@ -366,6 +376,7 @@ public partial class MainWindow : Window
             IslandState.Osd => (OsdWidth, OsdHeight),
             IslandState.Panel => (PanelWidth, _panelHeight),
             IslandState.Overview => (OverviewWidth, _overviewHeight),
+            IslandState.Message => (MessageWidth, MessageHeight),
             _ => (IdleWidth(), IdleHeight())
         };
 
@@ -379,6 +390,23 @@ public partial class MainWindow : Window
         if (_panelOpen) { GoTo(IslandState.Panel); return; }
         if (_hovering) { ShowOverview(); return; }
         GoTo(IslandState.Idle);
+    }
+
+    /// A toast from the watched app. Like the media pop, it waits its turn
+    /// rather than snatching a pinned panel or the hover overview away.
+    void ShowMessage(IncomingMessage message)
+    {
+        if (_panelOpen || _state == IslandState.Overview) return;
+
+        MessageInitial.Text = message.Sender.Length > 0
+            ? message.Sender[..1].ToUpper(Culture)
+            : "?";
+
+        MessageSender.Text = message.Sender;
+        MessagePreview.Text = message.Preview.Length > 0 ? message.Preview : message.App;
+
+        GoTo(IslandState.Message);
+        Hold(MediaDwell);
     }
 
     // ---- overview -------------------------------------------------------
