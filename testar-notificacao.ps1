@@ -14,7 +14,9 @@
 param(
     [string]$App,
     [int]$Vezes = 2,
-    [switch]$Listar
+    [switch]$Listar,
+    [switch]$Monitorar,
+    [int]$Segundos = 120
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,6 +51,34 @@ if ($Listar) {
     Write-Host ""
     Write-Host "Nada do WhatsApp na lista? Entao o Vivaldi nao esta criando toast nativo:"
     Write-Host "confira em vivaldi://settings, Paginas web, Notificacoes."
+    return
+}
+
+if ($Monitorar) {
+    Write-Host "Observando por $Segundos s. Deixe a janela do WhatsApp FORA de foco e peca uma mensagem." -ForegroundColor Cyan
+    Write-Host "Ctrl+C para parar."
+    Write-Host ""
+
+    # Guarda o que ja existe para so anunciar o que chegar daqui em diante.
+    $vistos = @{}
+    foreach ($n in Get-Toasts) { $vistos[[string]$n.Id] = $n.CreationTime }
+
+    $fim = (Get-Date).AddSeconds($Segundos)
+    while ((Get-Date) -lt $fim) {
+        Start-Sleep -Milliseconds 1500
+        foreach ($n in Get-Toasts) {
+            $k = [string]$n.Id
+            if ($vistos.ContainsKey($k) -and $vistos[$k] -eq $n.CreationTime) { continue }
+            $vistos[$k] = $n.CreationTime
+            Write-Host ("  {0:HH:mm:ss}  CHEGOU  {1,-22} {2}" -f `
+                $n.CreationTime.LocalDateTime, $n.AppInfo.DisplayInfo.DisplayName, $n.AppInfo.AppUserModelId) -ForegroundColor Green
+        }
+    }
+
+    Write-Host ""
+    Write-Host "Apareceu uma linha do Vivaldi quando a mensagem chegou?"
+    Write-Host "  Sim, e a ilha nao popou -> o problema e meu, me avise."
+    Write-Host "  Nao apareceu nada      -> o Vivaldi nao notificou o Windows."
     return
 }
 
