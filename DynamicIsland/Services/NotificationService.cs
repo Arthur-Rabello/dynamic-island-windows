@@ -22,7 +22,11 @@ public sealed class NotificationService
     static readonly TimeSpan Sweep = TimeSpan.FromMilliseconds(1200);
 
     readonly DispatcherTimer _timer = new() { Interval = Sweep };
-    readonly HashSet<uint> _seen = [];
+    /// Id to the creation time last seen for it. A chat app keeps one toast
+    /// per conversation and replaces it as messages arrive, and the
+    /// replacement reuses the id, so an id alone cannot tell a repeat from a
+    /// new message: the timestamp can.
+    readonly Dictionary<uint, DateTimeOffset> _seen = [];
 
     UserNotificationListener? _listener;
     bool _primed;
@@ -76,12 +80,14 @@ public sealed class NotificationService
         catch (Exception ex) { LastError = ex.Message; return; }
 
         // Forget ids that are gone so a dismissed and re-sent toast counts as
-        // new, and the set cannot grow without bound.
-        _seen.IntersectWith(toasts.Select(t => t.Id));
+        // new, and the map cannot grow without bound.
+        var live = toasts.Select(t => t.Id).ToHashSet();
+        foreach (uint id in _seen.Keys.Where(id => !live.Contains(id)).ToList()) _seen.Remove(id);
 
         foreach (var toast in toasts)
         {
-            if (!_seen.Add(toast.Id)) continue;
+            if (_seen.TryGetValue(toast.Id, out var when) && when == toast.CreationTime) continue;
+            _seen[toast.Id] = toast.CreationTime;
 
             // The first sweep sees every toast already on screen; announcing
             // those would pop the island for messages read hours ago.
