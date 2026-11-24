@@ -63,6 +63,12 @@ public partial class SettingsWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _signIn?.Cancel();
+
+        // Closing a window does not raise LostFocus on the control that has it,
+        // so text typed and then left focused would be thrown away.
+        SaveCity();
+        SaveClient();
+
         base.OnClosed(e);
     }
 
@@ -102,7 +108,9 @@ public partial class SettingsWindow : Window
         _changed();
     }
 
-    void City_LostFocus(object sender, RoutedEventArgs e)
+    void City_LostFocus(object sender, RoutedEventArgs e) => SaveCity();
+
+    void SaveCity()
     {
         string city = City.Text.Trim();
         if (city == _settings.WeatherLocation) return;
