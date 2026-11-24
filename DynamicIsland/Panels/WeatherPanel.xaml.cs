@@ -34,7 +34,12 @@ public partial class WeatherPanel : UserControl
             return;
         }
 
-        LocationLabel.Text = string.IsNullOrWhiteSpace(reading.Location)
+        // wttr.in answers with the nearest weather station, which for a pinned
+        // city is often a neighbouring town: Criciuma comes back as Icara. The
+        // city the user typed is the one to show, as a phone weather app does.
+        LocationLabel.Text = Location.Trim().Length > 0
+            ? Location.Trim()
+            : string.IsNullOrWhiteSpace(reading.Location)
             ? "Tempo agora"
             : reading.Location;
 
