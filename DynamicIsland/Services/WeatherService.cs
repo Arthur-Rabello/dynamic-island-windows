@@ -1,7 +1,10 @@
+using System.Globalization;
 using System.Net.Http;
 using System.Text.Json;
 
 namespace DynamicIsland.Services;
+
+public sealed record ForecastDay(DateTime Date, int MaxC, int MinC, string Glyph);
 
 public sealed record WeatherReading(
     string Location,
@@ -11,48 +14,62 @@ public sealed record WeatherReading(
     int WindKmph,
     string WindDir,
     string Description,
-    string Glyph);
+    string Glyph,
+    IReadOnlyList<ForecastDay> Forecast);
 
-/// Current conditions from wttr.in.
+/// Current conditions and a seven-day forecast from Open-Meteo.
 ///
-/// The request carries no identifying information beyond what any HTTP call
-/// does: a generic user agent and, when no location is configured, the IP the
-/// request comes from, which is how wttr.in geolocates. Setting
-/// WeatherLocation in settings.json pins a city and avoids even that.
+/// Open-Meteo is keyless but works in coordinates, so a configured city goes
+/// through its geocoder first. With no city set, wttr.in supplies the
+/// coordinates of whatever its IP lookup finds, which keeps the old
+/// "empty means detect me" behaviour without adding a second geolocation
+/// provider.
+///
+/// Nothing identifying is sent: a city name or a pair of coordinates, under a
+/// generic user agent.
 public sealed class WeatherService
 {
     static readonly HttpClient Http = CreateClient();
 
     static readonly TimeSpan CacheFor = TimeSpan.FromMinutes(15);
 
+    static readonly CultureInfo Culture = new("pt-BR");
+
     WeatherReading? _cached;
+    string _cachedFor = "";
     DateTime _fetchedAt = DateTime.MinValue;
+
+    readonly Dictionary<string, (double Lat, double Lon, string Name)> _places = new();
 
     public string? LastError { get; private set; }
 
     static HttpClient CreateClient()
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("DynamicIsland/1.0");
         return client;
     }
 
     public async Task<WeatherReading?> GetAsync(string location, bool force = false)
     {
-        if (!force && _cached is not null && DateTime.UtcNow - _fetchedAt < CacheFor)
+        string key = location.Trim();
+
+        // Keyed by location: changing the city used to keep serving the old
+        // city's reading until the cache aged out.
+        if (!force && _cached is not null && _cachedFor == key
+            && DateTime.UtcNow - _fetchedAt < CacheFor)
             return _cached;
 
         try
         {
-            string place = Uri.EscapeDataString(location.Trim());
-            string url = $"https://wttr.in/{place}?format=j1";
+            var place = await ResolveAsync(key);
+            if (place is null) return _cached;
 
-            string json = await Http.GetStringAsync(url);
-            var reading = Parse(json);
-
+            var reading = await LoadAsync(place.Value);
             if (reading is not null)
             {
                 _cached = reading;
+                _cachedFor = key;
                 _fetchedAt = DateTime.UtcNow;
                 LastError = null;
             }
@@ -66,72 +83,163 @@ public sealed class WeatherService
         }
     }
 
-    static WeatherReading? Parse(string json)
+    // ---- where ----------------------------------------------------------
+
+    async Task<(double Lat, double Lon, string Name)?> ResolveAsync(string location)
     {
-        using var document = JsonDocument.Parse(json);
-        var root = document.RootElement;
+        if (_places.TryGetValue(location, out var known)) return known;
 
-        if (!root.TryGetProperty("current_condition", out var conditions) ||
-            conditions.GetArrayLength() == 0)
-            return null;
+        var place = location.Length == 0
+            ? await LocateByAddressAsync()
+            : await GeocodeAsync(location);
 
-        var now = conditions[0];
+        if (place is not null) _places[location] = place.Value;
+        return place;
+    }
 
-        string location = "";
-        if (root.TryGetProperty("nearest_area", out var areas) && areas.GetArrayLength() > 0)
+    async Task<(double Lat, double Lon, string Name)?> GeocodeAsync(string city)
+    {
+        string url = "https://geocoding-api.open-meteo.com/v1/search?name="
+                     + Uri.EscapeDataString(city) + "&count=1&language=pt&format=json";
+
+        using var document = JsonDocument.Parse(await Http.GetStringAsync(url));
+
+        if (!document.RootElement.TryGetProperty("results", out var results)
+            || results.GetArrayLength() == 0)
         {
-            var area = areas[0];
-            string city = FirstValue(area, "areaName");
-            string region = FirstValue(area, "region");
-            location = string.IsNullOrEmpty(region) || region == city ? city : $"{city}, {region}";
+            LastError = $"Não encontrei a cidade {city}.";
+            return null;
         }
 
-        int code = Int(now, "weatherCode");
+        var first = results[0];
+        return (first.GetProperty("latitude").GetDouble(),
+                first.GetProperty("longitude").GetDouble(),
+                first.GetProperty("name").GetString() ?? city);
+    }
+
+    /// Open-Meteo has no IP lookup, so wttr.in is kept for this one job.
+    static async Task<(double Lat, double Lon, string Name)?> LocateByAddressAsync()
+    {
+        using var document = JsonDocument.Parse(await Http.GetStringAsync("https://wttr.in/?format=j1"));
+
+        if (!document.RootElement.TryGetProperty("nearest_area", out var areas)
+            || areas.GetArrayLength() == 0)
+            return null;
+
+        var area = areas[0];
+        return (double.Parse(area.GetProperty("latitude").GetString()!, CultureInfo.InvariantCulture),
+                double.Parse(area.GetProperty("longitude").GetString()!, CultureInfo.InvariantCulture),
+                area.GetProperty("areaName")[0].GetProperty("value").GetString() ?? "");
+    }
+
+    // ---- what -----------------------------------------------------------
+
+    static async Task<WeatherReading?> LoadAsync((double Lat, double Lon, string Name) place)
+    {
+        string url = string.Format(CultureInfo.InvariantCulture,
+            "https://api.open-meteo.com/v1/forecast?latitude={0}&longitude={1}"
+            + "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,"
+            + "wind_speed_10m,wind_direction_10m"
+            + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
+            + "&timezone=auto&forecast_days=7",
+            place.Lat, place.Lon);
+
+        using var document = JsonDocument.Parse(await Http.GetStringAsync(url));
+        var root = document.RootElement;
+
+        if (!root.TryGetProperty("current", out var now)) return null;
+
+        int code = now.GetProperty("weather_code").GetInt32();
 
         return new WeatherReading(
-            Location: location,
-            TempC: Int(now, "temp_C"),
-            FeelsLikeC: Int(now, "FeelsLikeC"),
-            Humidity: Int(now, "humidity"),
-            WindKmph: Int(now, "windspeedKmph"),
-            WindDir: Str(now, "winddir16Point"),
-            Description: FirstValue(now, "weatherDesc"),
-            Glyph: GlyphFor(code));
+            Location: place.Name,
+            TempC: Round(now, "temperature_2m"),
+            FeelsLikeC: Round(now, "apparent_temperature"),
+            Humidity: Round(now, "relative_humidity_2m"),
+            WindKmph: Round(now, "wind_speed_10m"),
+            WindDir: Compass(now.GetProperty("wind_direction_10m").GetDouble()),
+            Description: DescriptionFor(code),
+            Glyph: GlyphFor(code),
+            Forecast: ReadForecast(root));
     }
 
-    static string Str(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) ? value.GetString() ?? "" : "";
-
-    static int Int(JsonElement element, string name) =>
-        int.TryParse(Str(element, name), out int parsed) ? parsed : 0;
-
-    static string FirstValue(JsonElement element, string arrayName)
+    static IReadOnlyList<ForecastDay> ReadForecast(JsonElement root)
     {
-        if (!element.TryGetProperty(arrayName, out var array) || array.GetArrayLength() == 0)
-            return "";
+        if (!root.TryGetProperty("daily", out var daily)) return [];
 
-        return array[0].TryGetProperty("value", out var value) ? value.GetString() ?? "" : "";
+        var dates = daily.GetProperty("time");
+        var codes = daily.GetProperty("weather_code");
+        var highs = daily.GetProperty("temperature_2m_max");
+        var lows = daily.GetProperty("temperature_2m_min");
+
+        var days = new List<ForecastDay>();
+        for (int i = 0; i < dates.GetArrayLength(); i++)
+        {
+            days.Add(new ForecastDay(
+                DateTime.Parse(dates[i].GetString()!, CultureInfo.InvariantCulture),
+                (int)Math.Round(highs[i].GetDouble()),
+                (int)Math.Round(lows[i].GetDouble()),
+                GlyphFor(codes[i].GetInt32())));
+        }
+
+        return days;
     }
 
-    /// World Weather Online condition codes, which is what wttr.in reports.
-    ///
-    /// Only glyphs Segoe UI Emoji actually carries are used: U+1F32B (fog),
-    /// for one, is absent and renders as an empty box, so mist falls back to
-    /// the plain cloud.
+    static int Round(JsonElement element, string name) =>
+        (int)Math.Round(element.GetProperty(name).GetDouble());
+
+    static string Compass(double degrees)
+    {
+        string[] points =
+            ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+             "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
+
+        return points[(int)Math.Round(degrees / 22.5) % 16];
+    }
+
+    // ---- WMO codes ------------------------------------------------------
+
+    /// Only glyphs Segoe UI Emoji actually carries: U+1F32B (fog) is absent and
+    /// renders as an empty box, so fog falls back to the plain cloud.
     static string GlyphFor(int code) => code switch
     {
-        113 => "☀",                                    // clear
-        116 => "⛅",                                    // partly cloudy
-        119 or 122 => "☁",                             // cloudy / overcast
-        143 or 248 or 260 => "☁",                      // mist / fog
-        176 or 263 or 266 or 293 or 296 or 299 or 302
-            or 305 or 308 or 311 or 314 or 353 or 356
-            or 359 => "\U0001F327",                         // rain
-        179 or 182 or 185 or 227 or 230 or 317 or 320
-            or 323 or 326 or 329 or 332 or 335 or 338
-            or 350 or 362 or 365 or 368 or 371 or 374
-            or 377 => "\U0001F328",                         // snow / sleet
-        200 or 386 or 389 or 392 or 395 => "⛈",        // thunder
-        _ => "☁"
+        0 => "☀",
+        1 or 2 => "⛅",
+        3 or 45 or 48 => "☁",
+        56 or 57 or 66 or 67 or 71 or 73 or 75 or 77 or 85 or 86 => "\U0001F328",
+        95 or 96 or 99 => "⛈",
+        _ => "\U0001F327"
     };
+
+    static string DescriptionFor(int code) => code switch
+    {
+        0 => "Céu limpo",
+        1 => "Predominantemente limpo",
+        2 => "Parcialmente nublado",
+        3 => "Encoberto",
+        45 or 48 => "Nevoeiro",
+        51 or 53 or 55 => "Garoa",
+        56 or 57 => "Garoa congelante",
+        61 => "Chuva fraca",
+        63 => "Chuva",
+        65 => "Chuva forte",
+        66 or 67 => "Chuva congelante",
+        71 => "Neve fraca",
+        73 => "Neve",
+        75 => "Neve forte",
+        77 => "Grãos de neve",
+        80 => "Pancadas isoladas",
+        81 => "Pancadas de chuva",
+        82 => "Pancadas fortes",
+        85 or 86 => "Pancadas de neve",
+        95 => "Tempestade",
+        96 or 99 => "Tempestade com granizo",
+        _ => "Sem leitura"
+    };
+
+    /// Short weekday for the forecast strip; today reads as "hoje".
+    public static string DayLabel(DateTime date) =>
+        date.Date == DateTime.Today
+            ? "hoje"
+            : Culture.DateTimeFormat.AbbreviatedDayNames[(int)date.DayOfWeek].TrimEnd('.');
 }

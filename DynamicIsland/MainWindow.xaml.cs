@@ -574,8 +574,21 @@ public partial class MainWindow : Window
         return _calendarPanel;
     }
 
-    WeatherPanel Weather() =>
-        _weatherPanel ??= new WeatherPanel(_weather) { Location = _settings.WeatherLocation };
+    WeatherPanel Weather()
+    {
+        if (_weatherPanel is null)
+        {
+            _weatherPanel = new WeatherPanel(_weather) { Location = _settings.WeatherLocation };
+            _weatherPanel.LayoutChanged += () =>
+            {
+                if (_state != IslandState.Panel || _panelTab != PanelTab.Weather) return;
+                _panelHeight = MeasurePanel(_weatherPanel);
+                AnimateTo(PanelWidth, _panelHeight);
+            };
+        }
+
+        return _weatherPanel;
+    }
 
     HardwarePanel Hardware() => _hardwarePanel ??= new HardwarePanel(_hardware);
 
