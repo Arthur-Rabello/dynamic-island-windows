@@ -40,8 +40,11 @@ function Get-Toasts {
 
 if ($Listar) {
     Write-Host "Apps com notificacao viva agora (use o AUMID no campo MENSAGENS):" -ForegroundColor Cyan
-    foreach ($n in Get-Toasts) {
-        Write-Host ("  {0,-22} {1}" -f $n.AppInfo.DisplayInfo.DisplayName, $n.AppInfo.AppUserModelId)
+    # O horario e o que permite saber se a notificacao que acabou de chegar
+    # virou toast do Windows, sem ninguem precisar ler o texto dela.
+    foreach ($n in Get-Toasts | Sort-Object { $_.CreationTime }) {
+        Write-Host ("  {0:HH:mm:ss}  {1,-22} {2}" -f `
+            $n.CreationTime.LocalDateTime, $n.AppInfo.DisplayInfo.DisplayName, $n.AppInfo.AppUserModelId)
     }
     Write-Host ""
     Write-Host "Nada do WhatsApp na lista? Entao o Vivaldi nao esta criando toast nativo:"
