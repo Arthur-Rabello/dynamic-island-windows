@@ -24,8 +24,18 @@ Um ponto verde à esquerda do relógio indica que tem mídia tocando.
 | Brilho mudou | Barra de brilho — só em notebooks, via WMI |
 | Carregador conectado/removido | Porcentagem da bateria |
 | Bateria ≤ 20% | Aviso, uma vez por descarga |
+| Mensagem nova | Remetente e prévia, por ~3 s (veja Mensagens) |
 
-Passar o mouse por cima abre o painel de mídia.
+## Visão geral
+
+Passar o mouse por cima abre uma tela com um cartão por função ativa: o que
+está tocando, o evento em andamento e o próximo, o tempo, e CPU/RAM/GPU/volume.
+Clicar em qualquer cartão abre o painel completo daquela função.
+
+Cartão sem conteúdo não aparece — sem música tocando, não há cartão de mídia.
+
+Mensagem que chega enquanto a visão geral está aberta não interrompe: ela entra
+na lista da aba Mensagens sem roubar a tela.
 
 ## Painéis
 
@@ -34,11 +44,14 @@ Clique na pílula para abrir. As abas ficam no topo; o × fecha.
 - **Calendário** — grade mensal que ajusta a altura ao número de semanas do
   mês. Hoje em destaque na cor de realce do Windows, ponto embaixo dos dias com
   compromisso, e os eventos do dia selecionado listados abaixo.
-- **Tempo** — temperatura, condição, sensação, umidade e vento, via wttr.in.
+- **Tempo** — temperatura, condição, sensação, umidade e vento, mais sete dias
+  de previsão com máxima e mínima. Via Open-Meteo.
 - **Hardware** — CPU, GPU, RAM, disco e rede. As barras ficam âmbar acima de
   75% e vermelhas acima de 90%.
 - **Volume** — clique ou arraste a barra para ajustar o volume geral; clique no
   alto-falante para silenciar.
+- **Mensagens** — as últimas notificações do app vigiado, com remetente, prévia
+  e horário. A aba só existe se houver um app configurado.
 
 Enquanto um painel está aberto, mudanças de volume e brilho não o interrompem.
 
@@ -53,13 +66,65 @@ Clique no ícone da Dynamic Island na bandeja do sistema (ou botão direito →
 - Ligar ou desligar cada expansão automática: música, volume, brilho, bateria.
 - Ligar ou desligar cada aba do painel — as bolinhas acompanham.
 - Cidade do clima.
+- App de mensagens a vigiar (abaixo).
 - Conta Google para o calendário (abaixo).
+
+Os campos de texto salvam ao perder o foco **e** ao fechar a janela. Fechar no
+× com o cursor ainda dentro do campo não perde o que você digitou.
 
 ## Mover
 
 Arraste a pílula para onde quiser, inclusive para um segundo monitor. A posição
 é salva e restaurada no próximo boot. Clique sem arrastar continua abrindo o
 painel — o arraste só começa depois de 5 px de movimento.
+
+## Mensagens
+
+A ilha espelha as notificações de **um** app, que você escolhe em
+Configurações → MENSAGENS. O campo casa com o nome do app **ou** com o
+AppUserModelId; para o WhatsApp Web aberto como app do Vivaldi, `Vivaldi`
+basta. Campo vazio desliga o recurso e some com a aba.
+
+Se o navegador notificar demais além do WhatsApp, troque pelo AUMID completo
+do app instalado, que é mais específico. Para descobrir qual é:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\testar-notificacao.ps1" -Listar
+```
+
+### Três interruptores, não um
+
+Notificação só nasce se os três estiverem ligados, e eles são independentes:
+
+1. **No site** — permissão de notificação para `web.whatsapp.com`.
+2. **No Vivaldi** — Configurações do app → Notificações, no PWA instalado.
+3. **No WhatsApp** — ⋮ → Configurações → Notificações → **Messages**.
+
+O terceiro é o que costuma passar despercebido: vem desligado e nenhuma
+mensagem gera notificação enquanto estiver assim. Essa mesma tela tem um botão
+**Send test notification**, que é a forma mais rápida de testar.
+
+Vale lembrar que site nenhum notifica enquanto a própria janela está em foco.
+Para testar com mensagem real, minimize a janela do WhatsApp.
+
+### Testar
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\testar-notificacao.ps1" -Monitorar
+```
+
+Fica observando e anuncia cada notificação que o Windows receber. Se aparecer
+linha do app e a ilha não reagir, o problema é da ilha; se não aparecer nada, a
+notificação não chegou a existir.
+
+Sem argumento, o script dispara dois toasts seguidos — é o teste do caso em que
+um app de conversa substitui a própria notificação em vez de criar outra.
+
+### O que ele lê
+
+A API do Windows entrega as notificações de todos os apps; o filtro é aplicado
+depois, dentro da ilha. O histórico fica **só em memória**, no máximo 20, e
+morre com o processo — texto de notificação não é coisa para deixar em disco.
 
 ## Conectar seu calendário
 
@@ -165,9 +230,15 @@ acontecer:
 .\publish\DynamicIsland.exe --panel=calendar
 ```
 
-`--panel` aceita `calendar`, `weather`, `hardware` ou `volume`. `--event`
-mostra na pílula um evento de mentira daqui a 12 minutos. `--settings` abre a janela
-de configurações já na inicialização.
+```powershell
+.\publish\DynamicIsland.exe --overview
+```
+
+`--panel` aceita `calendar`, `weather`, `hardware`, `volume` ou `messages`.
+`--overview` abre a visão geral travada, com um evento em andamento e um
+próximo de mentira, que é o único jeito de inspecionar a trilha da agenda sem
+ter reunião marcada. `--event` mostra na pílula um evento de mentira daqui a 12
+minutos. `--settings` abre a janela de configurações já na inicialização.
 
 Para fechar: ícone na bandeja do sistema → botão direito → Sair.
 
@@ -192,20 +263,29 @@ Cria um atalho na pasta Inicializar do seu usuário. `-Remover` desfaz.
 }
 ```
 
-`WeatherLocation` vazio deixa o wttr.in resolver a cidade pelo IP da
-requisição. Preencha com `"Sao Paulo"` para fixar — e aí nem o IP é usado para
-localização.
+`WeatherLocation` vazio deixa a localização ser resolvida pelo IP da
+requisição. Preencha com `"Criciúma"` para fixar — e aí nem o IP é usado.
+
+O painel mostra a cidade que você escreveu, não a estação meteorológica. São
+coisas diferentes: a estação mais próxima de Criciúma costuma ser Içara, e era
+isso que aparecia antes.
+
+`MessageApp` vazio desliga as mensagens.
 
 ## Consumo medido
 
 Ocioso, nesta máquina (8 núcleos), com a pílula mostrando relógio, clima e
 bateria:
 
-- 163 MB de working set, 75 MB privados — típico de WPF
-- 0,08% de CPU
+- 194 MB de working set, 94 MB privados — típico de WPF
+- 0,19% de CPU
 
-Com o painel de hardware aberto o custo sobe, porque é o único momento em que
-os contadores de desempenho rodam. Feche o painel e volta ao número acima.
+Subiu dos 163 MB iniciais conforme entraram a visão geral, o clima de sete dias
+e a leitura de notificações. A varredura de notificações, a cada 1,2 s, é o que
+mantém a CPU acima de zero quando nada está aberto.
+
+Com o painel de hardware aberto o custo sobe mais, porque é quando os
+contadores de desempenho rodam. Feche o painel e volta ao número acima.
 
 ## Como funciona
 
@@ -222,13 +302,31 @@ os contadores de desempenho rodam. Feche o painel e volta ao número acima.
 - **Brilho** — evento WMI `WmiMonitorBrightnessEvent`. Em desktop a classe não
   existe e o recurso fica dormente.
 - **Bateria** — `GetSystemPowerStatus`.
+- **Tempo** — Open-Meteo, sem chave. Trabalha em coordenadas, então a cidade
+  passa pelo geocoder dele; sem cidade, o wttr.in entrega as coordenadas do que
+  achar pelo IP, que é o único motivo de ele continuar no projeto. As
+  descrições são escritas aqui a partir do código WMO, porque a API só manda o
+  número.
+- **Mensagens** — `UserNotificationListener`, que funciona em processo não
+  empacotado depois que o Windows libera o acesso. Varre a cada 1,2 s em vez de
+  usar `NotificationChanged`, que só é confiável para apps empacotados. A
+  deduplicação guarda id **e** horário: um app de conversa substitui a própria
+  notificação reaproveitando o id, e só o horário distingue mensagem nova de
+  repetida.
 - **Câmera e microfone** — `ConsentStore` no registro do usuário. Cada app que
   já usou o dispositivo tem uma subchave com `LastUsedTimeStart` e
   `LastUsedTimeStop`; `Stop` igual a zero significa sessão aberta. É a mesma
   fonte que o indicador de privacidade da bandeja usa.
-- **Hardware** — `GetSystemTimes` (CPU), `GlobalMemoryStatusEx` (RAM),
-  contadores de desempenho `GPU Engine` e `PhysicalDisk`, e deltas de
-  `NetworkInterface` (rede). Só roda enquanto o painel está aberto.
+- **Hardware** — contador `% Processor Utility` (CPU), `GlobalMemoryStatusEx`
+  (RAM), contadores `GPU Engine` e `PhysicalDisk`, e deltas de
+  `NetworkInterface` (rede). A amostragem roda fora da UI thread e só enquanto
+  um painel que a usa está aberto; enumerar as instâncias de GPU é a parte
+  cara, e é pré-aquecida no início.
+
+  A CPU usa `% Processor Utility`, não `GetSystemTimes`. Este mede
+  `% Processor Time`, tempo puro, e com speed shift diverge do Gerenciador de
+  Tarefas: esta máquina marcava 100% por tempo com o Gerenciador em 77%.
+  `GetSystemTimes` ficou como alternativa para máquina sem o contador.
 - **Janela** — `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`: clicar nela nunca rouba
   o foco do que você está digitando, e ela não aparece no Alt+Tab nem na barra
   de tarefas.
@@ -245,9 +343,10 @@ Duas decisões de layout que valem conhecer antes de mexer:
 
 Constantes no topo de `DynamicIsland/MainWindow.xaml.cs`:
 
-- `CollapsedWidth` / `MediaWidth` / `OsdWidth` / `PanelWidth`
+- `CollapsedWidth` / `MediaWidth` / `OsdWidth` / `PanelWidth` / `OverviewWidth`
+  / `MessageWidth`
 - `DefaultTop`, `DragThreshold`
-- `OsdDwell` / `MediaDwell`
+- `OsdDwell` / `MediaDwell` — o pop de mensagem usa `MediaDwell`
 
 Cores e estilos compartilhados ficam em `App.xaml`.
 
@@ -262,3 +361,12 @@ Cores e estilos compartilhados ficam em `App.xaml`.
 - O painel de hardware soma as instâncias `engtype_3D` para a GPU, que é o que
   o Gerenciador de Tarefas mostra como número principal. Cargas de computação
   pura podem não aparecer.
+- A ilha só enxerga o que o Windows notifica. App com notificação desligada,
+  conversa silenciada ou janela em foco não geram nada para ela ler.
+- A fila de mensagens não sobrevive ao fechamento do app, de propósito.
+- Clicar no pop de mensagem não abre o app de origem.
+- `SettingsStore.Load` devolve configuração em branco se o `settings.json`
+  estiver corrompido, sem avisar. Nesse caso o próximo save grava o arquivo
+  vazio por cima.
+- A geocodificação do clima pega o primeiro resultado. Cidade com homônima em
+  outro estado pode resolver errado; escreva `"Criciúma, Santa Catarina"`.
