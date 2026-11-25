@@ -55,11 +55,13 @@ if ($SemRelease) {
 Write-Host "== criando a release ==" -ForegroundColor Cyan
 
 # A conta ativa do gh alterna entre contas; a release tem de sair na dona do repo.
-gh auth switch --user Arthur-Rabello 2>&1 | Out-Null
+# gh escreve o aviso de troca no stderr, e com ErrorActionPreference Stop isso aborta.
+& { $ErrorActionPreference = 'Continue'; gh auth switch --user Arthur-Rabello 2>&1 | Out-Null }
 
 $tag = "v$Versao"
-$existe = gh release view $tag --repo Arthur-Rabello/dynamic-island-windows 2>$null
-if ($existe) { throw "A release $tag ja existe. Use outra versao." }
+$existe = & { $ErrorActionPreference = 'Continue'
+    gh release view $tag --repo Arthur-Rabello/dynamic-island-windows 2>$null }
+if ($LASTEXITCODE -eq 0 -and $existe) { throw "A release $tag ja existe. Use outra versao." }
 
 gh release create $tag $setup `
     --repo Arthur-Rabello/dynamic-island-windows `
