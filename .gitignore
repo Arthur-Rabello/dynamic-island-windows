@@ -3,6 +3,9 @@ bin/
 obj/
 publish/
 
+# Instalador gerado; ele vive nas releases do GitHub, não no repositório.
+dist/
+
 # Visual Studio / Rider
 .vs/
 .idea/

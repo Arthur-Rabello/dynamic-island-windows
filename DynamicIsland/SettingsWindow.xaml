@@ -110,7 +110,7 @@
             <Button x:Name="GoogleButton" Click="Google_Click" HorizontalAlignment="Left"/>
 
             <TextBlock Foreground="{StaticResource TextFaint}" FontSize="11.5" TextWrapping="Wrap" Margin="0,12,0,0">
-                <Run Text="O ID e o segredo vêm de uma credencial do tipo &quot;App para computador&quot; no"/>
+                <Run Text="Em branco, o app usa a credencial que veio com ele — basta entrar. Preencha só para usar a sua: o ID e o segredo vêm de uma credencial do tipo &quot;App para computador&quot; no"/>
                 <Hyperlink NavigateUri="https://console.cloud.google.com/apis/credentials" RequestNavigate="Link_Navigate">Google Cloud Console</Hyperlink>
                 <Run Text="(com a Google Agenda API ativada). Deixe o app em &quot;Em produção&quot;, senão o Google pede login de novo a cada 7 dias."/>
             </TextBlock>

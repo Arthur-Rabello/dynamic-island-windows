@@ -33,13 +33,23 @@ public sealed class GoogleCalendar
 
     public GoogleCalendar(Settings settings) => _settings = settings;
 
+    /// What the user typed wins; otherwise the build's own client is used, so a
+    /// fresh install has nothing to paste before signing in.
+    string ClientId => _settings.GoogleClientId.Length > 0
+        ? _settings.GoogleClientId
+        : EmbeddedCredentials.ClientId;
+
+    string ClientSecret => _settings.GoogleClientSecret.Length > 0
+        ? _settings.GoogleClientSecret
+        : EmbeddedCredentials.ClientSecret;
+
     public bool SignedIn => File.Exists(TokenFile);
 
     // ---- sign in / out --------------------------------------------------
 
     public async Task SignInAsync(CancellationToken ct)
     {
-        if (_settings.GoogleClientId.Length == 0 || _settings.GoogleClientSecret.Length == 0)
+        if (ClientId.Length == 0 || ClientSecret.Length == 0)
             throw new InvalidOperationException("Preencha o ID e o segredo do cliente.");
 
         var tcp = new TcpListener(IPAddress.Loopback, 0);
@@ -52,7 +62,7 @@ public sealed class GoogleCalendar
             string state = Base64Url(RandomNumberGenerator.GetBytes(16));
 
             string url = "https://accounts.google.com/o/oauth2/v2/auth?" + Query(
-                ("client_id", _settings.GoogleClientId), ("redirect_uri", redirect),
+                ("client_id", ClientId), ("redirect_uri", redirect),
                 ("response_type", "code"), ("scope", Scope), ("state", state),
                 ("code_challenge", challenge), ("code_challenge_method", "S256"),
                 ("access_type", "offline"), ("prompt", "consent"));
@@ -155,8 +165,8 @@ public sealed class GoogleCalendar
     {
         var form = new List<KeyValuePair<string, string>>
         {
-            new("client_id", _settings.GoogleClientId),
-            new("client_secret", _settings.GoogleClientSecret)
+            new("client_id", ClientId),
+            new("client_secret", ClientSecret)
         };
         form.AddRange(fields.Select(f => new KeyValuePair<string, string>(f.Item1, f.Item2)));
 
