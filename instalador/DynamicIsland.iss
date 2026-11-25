@@ -33,8 +33,8 @@ DisableDirPage=yes
 PrivilegesRequired=lowest
 
 ; Fecha a ilha antes de substituir o executavel, em vez de falhar por arquivo
-; em uso. O mutex e o mesmo que o app usa para instancia unica.
-AppMutex=DynamicIslandForWindows.SingleInstance
+; em uso. Sem AppMutex de proposito: na atualizacao pelo app, o instalador
+; sobe enquanto a ilha ainda esta saindo, e o mutex abortaria a instalacao.
 CloseApplications=yes
 RestartApplications=no
 
@@ -63,7 +63,8 @@ Name: "{userdesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: atalhoarea
 Name: "{userstartup}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: iniciarcomwindows
 
 [Run]
-Filename: "{app}\{#AppExe}"; Description: "Abrir a {#AppName} agora"; Flags: nowait postinstall skipifsilent
+; Roda tambem no modo silencioso, que e o da atualizacao pelo app: a ilha volta sozinha.
+Filename: "{app}\{#AppExe}"; Description: "Abrir a {#AppName} agora"; Flags: nowait postinstall
 
 [UninstallDelete]
 ; A configuracao fica fora do diretorio do app; some junto na desinstalacao.

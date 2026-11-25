@@ -14,6 +14,7 @@ public partial class SettingsWindow : Window
     readonly GoogleCalendar _google;
     readonly Action _changed;
     CancellationTokenSource? _signIn;
+    Updater.Release? _update;
 
     public SettingsWindow(Settings settings, GoogleCalendar google, Action changed)
     {
@@ -46,6 +47,7 @@ public partial class SettingsWindow : Window
 
         City.Text = _settings.WeatherLocation;
         MessageApp.Text = _settings.MessageApp;
+        UpdateStatus.Text = $"Versão {Updater.Current}";
         RefreshGoogleUi();
     }
 
@@ -177,4 +179,35 @@ public partial class SettingsWindow : Window
         if (!_google.SignedIn) GoogleStatus.Text = failure;
     }
 
+    // ---- update ---------------------------------------------------------
+
+    /// First click looks for a release, the second installs it.
+    async void Update_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateButton.IsEnabled = false;
+        try
+        {
+            if (_update is null)
+            {
+                UpdateStatus.Text = "Procurando…";
+                _update = await Updater.FindNewerAsync();
+
+                if (_update is null)
+                {
+                    UpdateStatus.Text = $"Versão {Updater.Current} — já é a mais nova.";
+                    return;
+                }
+
+                UpdateStatus.Text = $"Versão {_update.Version} disponível (você está na {Updater.Current}).";
+                UpdateButton.Content = $"Atualizar para {_update.Version}";
+                return;
+            }
+
+            UpdateStatus.Text = "Baixando… a ilha fecha e volta sozinha.";
+            await Updater.InstallAsync(_update);
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex) { UpdateStatus.Text = "Não deu certo: " + ex.Message; }
+        finally { UpdateButton.IsEnabled = true; }
+    }
 }

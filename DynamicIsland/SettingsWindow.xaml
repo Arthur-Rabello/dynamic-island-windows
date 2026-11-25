@@ -103,6 +103,11 @@
             <TextBlock x:Name="GoogleStatus" Foreground="{StaticResource TextPrimary}" TextWrapping="Wrap"/>
             <Button x:Name="GoogleButton" Click="Google_Click" HorizontalAlignment="Left" Margin="0,10,0,0"/>
 
+            <TextBlock Text="ATUALIZAÇÃO" Style="{StaticResource Heading}"/>
+            <TextBlock x:Name="UpdateStatus" Foreground="{StaticResource TextPrimary}" TextWrapping="Wrap"/>
+            <Button x:Name="UpdateButton" Content="Procurar atualização" Click="Update_Click"
+                    HorizontalAlignment="Left" Margin="0,10,0,0"/>
+
         </StackPanel>
     </ScrollViewer>
 </Window>
