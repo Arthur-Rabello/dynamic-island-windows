@@ -48,8 +48,6 @@ public sealed class Settings
 
     public bool MessagesTab { get; set; } = true;
 
-    public string GoogleClientId { get; set; } = "";
-    public string GoogleClientSecret { get; set; } = "";
     public string GoogleEmail { get; set; } = "";
 }
 

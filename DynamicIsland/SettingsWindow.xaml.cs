@@ -46,10 +46,6 @@ public partial class SettingsWindow : Window
 
         City.Text = _settings.WeatherLocation;
         MessageApp.Text = _settings.MessageApp;
-        ClientId.Text = _settings.GoogleClientId;
-        ClientSecret.Text = _settings.GoogleClientSecret;
-        ClientId.LostFocus += (_, _) => SaveClient();
-        ClientSecret.LostFocus += (_, _) => SaveClient();
         RefreshGoogleUi();
     }
 
@@ -70,7 +66,6 @@ public partial class SettingsWindow : Window
         // so text typed and then left focused would be thrown away.
         SaveCity();
         SaveMessageApp();
-        SaveClient();
 
         base.OnClosed(e);
     }
@@ -135,17 +130,9 @@ public partial class SettingsWindow : Window
 
     // ---- Google ---------------------------------------------------------
 
-    void SaveClient()
-    {
-        _settings.GoogleClientId = ClientId.Text.Trim();
-        _settings.GoogleClientSecret = ClientSecret.Text.Trim();
-        SettingsStore.Save(_settings);
-    }
-
     void RefreshGoogleUi()
     {
         bool signedIn = _google.SignedIn;
-        ClientId.IsEnabled = ClientSecret.IsEnabled = !signedIn && _signIn is null;
 
         GoogleButton.Content = _signIn is not null ? "Cancelar"
             : signedIn ? "Sair da conta Google"
@@ -171,8 +158,6 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        SaveClient();
-
         _signIn = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         GoogleStatus.Text = "Aguardando o navegador…";
         RefreshGoogleUi();
@@ -192,9 +177,4 @@ public partial class SettingsWindow : Window
         if (!_google.SignedIn) GoogleStatus.Text = failure;
     }
 
-    void Link_Navigate(object sender, RequestNavigateEventArgs e)
-    {
-        Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
-        e.Handled = true;
-    }
 }

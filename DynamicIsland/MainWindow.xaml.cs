@@ -760,7 +760,9 @@ public partial class MainWindow : Window
             // The overview already shows the track, so a change there should
             // refresh the card rather than replace the panel with the pop-up.
             if (_state == IslandState.Overview) _overviewPanel?.Render(_upcoming);
-            else if (_state is not (IslandState.Osd or IslandState.Panel))
+            // Not over a message either: WhatsApp Web's chime registers as
+            // media, and its start/stop would bury the message it announces.
+            else if (_state is not (IslandState.Osd or IslandState.Panel or IslandState.Message))
             {
                 GoTo(IslandState.Media);
                 Hold(MediaDwell);

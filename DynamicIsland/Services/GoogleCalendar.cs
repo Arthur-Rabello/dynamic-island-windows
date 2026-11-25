@@ -13,9 +13,9 @@ namespace DynamicIsland.Services;
 /// Read-only Google Calendar access through the OAuth "installed app" flow:
 /// system browser + PKCE + a loopback redirect, no embedded web view.
 ///
-/// The client id/secret are the user's own (a Desktop-app credential from
-/// their Google Cloud project), kept in settings.json. Only the refresh token
-/// is sensitive, and it is stored DPAPI-encrypted for the current Windows user.
+/// The client id/secret ship inside the build (EmbeddedCredentials) and are
+/// not editable. Only the refresh token is per user, stored DPAPI-encrypted
+/// for the current Windows user.
 ///
 /// shortcut: a Cloud project left in "Testing" makes Google expire the refresh
 /// token after 7 days; publish it to "In production" (fine for personal use)
@@ -33,15 +33,8 @@ public sealed class GoogleCalendar
 
     public GoogleCalendar(Settings settings) => _settings = settings;
 
-    /// What the user typed wins; otherwise the build's own client is used, so a
-    /// fresh install has nothing to paste before signing in.
-    string ClientId => _settings.GoogleClientId.Length > 0
-        ? _settings.GoogleClientId
-        : EmbeddedCredentials.ClientId;
-
-    string ClientSecret => _settings.GoogleClientSecret.Length > 0
-        ? _settings.GoogleClientSecret
-        : EmbeddedCredentials.ClientSecret;
+    static string ClientId => EmbeddedCredentials.ClientId;
+    static string ClientSecret => EmbeddedCredentials.ClientSecret;
 
     public bool SignedIn => File.Exists(TokenFile);
 
@@ -49,9 +42,6 @@ public sealed class GoogleCalendar
 
     public async Task SignInAsync(CancellationToken ct)
     {
-        if (ClientId.Length == 0 || ClientSecret.Length == 0)
-            throw new InvalidOperationException("Preencha o ID e o segredo do cliente.");
-
         var tcp = new TcpListener(IPAddress.Loopback, 0);
         tcp.Start();
         try
