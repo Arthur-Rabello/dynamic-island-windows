@@ -45,6 +45,10 @@ public sealed class NotificationService
 
     const int Keep = 20;
 
+    /// A list meant for "what did I miss just now" goes stale fast; anything
+    /// older than this is clutter rather than history.
+    static readonly TimeSpan Forget = TimeSpan.FromHours(2);
+
     readonly List<IncomingMessage> _recent = [];
 
     /// Newest first. In memory only: notification text is not something to
@@ -82,6 +86,9 @@ public sealed class NotificationService
     async Task PollAsync()
     {
         if (_listener is null) return;
+
+        var now = DateTime.Now;
+        _recent.RemoveAll(m => now - m.At > Forget);
 
         IReadOnlyList<UserNotification> toasts;
         try { toasts = await _listener.GetNotificationsAsync(NotificationKinds.Toast); }
