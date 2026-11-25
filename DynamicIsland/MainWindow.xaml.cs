@@ -38,6 +38,7 @@ public partial class MainWindow : Window
 
     static readonly TimeSpan OsdDwell = TimeSpan.FromMilliseconds(1700);
     static readonly TimeSpan MediaDwell = TimeSpan.FromMilliseconds(3200);
+    static readonly TimeSpan MessageDwell = TimeSpan.FromSeconds(6);
     static readonly TimeSpan HoverExitDelay = TimeSpan.FromMilliseconds(220);
 
     const string GlyphPlay = "";
@@ -410,7 +411,7 @@ public partial class MainWindow : Window
         MessagePreview.Text = message.Preview.Length > 0 ? message.Preview : message.App;
 
         GoTo(IslandState.Message);
-        Hold(MediaDwell);
+        Hold(MessageDwell);
     }
 
     // ---- overview -------------------------------------------------------
@@ -755,7 +756,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (isNew && MediaOn)
+        // WhatsApp Web's notification sound registers as untitled media named
+        // after the site; the message pop already announces it.
+        bool whatsAppSound = _media.Artist.Length == 0
+            && _media.Title.Contains("whatsapp.com", StringComparison.OrdinalIgnoreCase);
+
+        if (isNew && MediaOn && !whatsAppSound)
         {
             // The overview already shows the track, so a change there should
             // refresh the card rather than replace the panel with the pop-up.
