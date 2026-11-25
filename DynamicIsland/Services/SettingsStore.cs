@@ -42,7 +42,9 @@ public sealed class Settings
     // it lives DPAPI-encrypted in google.token.
     /// Display name or AppUserModelId of the app whose notifications pop in
     /// the island. Empty keeps the feature off.
-    public string MessageApp { get; set; } = "";
+    // Ligado de fabrica: "whatsapp" pega o app da Store, "_crx_" pega o
+    // WhatsApp Web instalado como app por um navegador Chromium.
+    public string MessageApp { get; set; } = "whatsapp,_crx_";
 
     public bool MessagesTab { get; set; } = true;
 

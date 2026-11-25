@@ -92,10 +92,10 @@
             <TextBox x:Name="City" LostFocus="City_LostFocus"/>
 
             <TextBlock Text="MENSAGENS" Style="{StaticResource Heading}"/>
-            <TextBlock Text="App a vigiar, por nome ou id (vazio = desligado)"
+            <TextBlock Text="Apps a vigiar, por nome ou id, separados por vírgula (vazio = desligado)"
                        Foreground="{StaticResource TextMuted}" FontSize="11.5"/>
             <TextBox x:Name="MessageApp" LostFocus="MessageApp_LostFocus"/>
-            <TextBlock Text="Ex.: Vivaldi para o WhatsApp Web aberto como app, ou WhatsApp para o da Store. Só aparece o que o Windows notificar."
+            <TextBlock Text="Já vem com whatsapp,_crx_ — o primeiro pega o app da Store, o segundo qualquer site que você tenha instalado como app por um navegador Chromium. Só aparece o que o Windows notificar."
                        Foreground="{StaticResource TextFaint}"
                        FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
 

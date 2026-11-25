@@ -31,8 +31,9 @@ public sealed class NotificationService
     UserNotificationListener? _listener;
     bool _primed;
 
-    /// Matched case-insensitively against both the app's display name and its
-    /// AppUserModelId. Empty disables the whole feature.
+    /// Comma-separated terms; each is matched case-insensitively against both
+    /// the app's display name and its AppUserModelId, and any hit lets the
+    /// toast through. Empty disables the whole feature.
     public string AppFilter { get; set; } = "";
 
     public string? LastError { get; private set; }
@@ -130,8 +131,10 @@ public sealed class NotificationService
             LastSeenApp = app.Length > 0 ? $"{app} ({id})" : id;
 
             if (AppFilter.Length == 0) return null;
-            if (!app.Contains(AppFilter, StringComparison.OrdinalIgnoreCase)
-                && !id.Contains(AppFilter, StringComparison.OrdinalIgnoreCase))
+            if (!AppFilter
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Any(term => app.Contains(term, StringComparison.OrdinalIgnoreCase)
+                              || id.Contains(term, StringComparison.OrdinalIgnoreCase)))
                 return null;
 
             var binding = toast.Notification.Visual.GetBinding(KnownNotificationBindings.ToastGeneric);
