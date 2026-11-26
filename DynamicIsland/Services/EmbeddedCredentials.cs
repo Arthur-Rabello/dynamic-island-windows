@@ -14,9 +14,9 @@ public static class EmbeddedCredentials
 {
     const string Key = "dynamic-island-windows";
 
-    public static string ClientId => Unscramble("UUpaVlpfWx1aRV5MXwlZFl5eAAETGFMeWwJZDgAeG0sACwBcQxgbXBIEAwBKGB4RHkcEQgYUAAQbF0gFCgEKGxIdEFcNDgA=");
+    public static string ClientId => Unscramble("V05WUl9YURRaQVhSQw5KHRkPAwUBBRceGlQfAAtHXhZdAF9SWB4NWwAARAMQVw8RHRpNSgYcCw0LEV4SGw0LAQMWCg1AAgIE");
 
-    public static string ClientSecret => Unscramble("IzYtMj0xTlUrJRs0NlVsRFscUAMhNC0NKhAvPVJkISM/NwE=");
+    public static string ClientSecret => Unscramble("IzYtMj0xTk9ZOCJTNg1pEgEvIzhDCj1BBVkUDgYAMCIdOQA=");
 
     static string Unscramble(string value)
     {
