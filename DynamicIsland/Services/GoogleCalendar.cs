@@ -166,8 +166,12 @@ public sealed class GoogleCalendar
 
         if (!response.IsSuccessStatusCode)
         {
+            // The code ("unauthorized_client") is what callers match on; the
+            // description alone can be a bare "Unauthorized".
+            string code = doc.RootElement.TryGetProperty("error", out var c) ? c.GetString() ?? "" : "";
             string error = doc.RootElement.TryGetProperty("error_description", out var d)
                 ? d.GetString()! : response.StatusCode.ToString();
+            if (code.Length > 0) error = $"{error} ({code})";
             doc.Dispose();
             throw new InvalidOperationException(error);
         }
